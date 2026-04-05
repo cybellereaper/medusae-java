@@ -69,6 +69,7 @@ import com.github.cybellereaper.gateway.events.GuildCreateEvent;
 import com.github.cybellereaper.gateway.events.InteractionCreateEvent;
 import com.github.cybellereaper.gateway.events.MessageCreateEvent;
 import com.github.cybellereaper.gateway.events.MessageDeleteEvent;
+import com.github.cybellereaper.gateway.events.MessageReactionAddEvent;
 import com.github.cybellereaper.gateway.events.ReadyEvent;
 
 client.on("READY", ReadyEvent.class, ready ->
@@ -79,6 +80,9 @@ client.on("MESSAGE_CREATE", MessageCreateEvent.class, event ->
 
 client.on("MESSAGE_DELETE", MessageDeleteEvent.class, event ->
         System.out.println("Deleted message " + event.id() + " in channel " + event.channelId()));
+
+client.on("MESSAGE_REACTION_ADD", MessageReactionAddEvent.class, event ->
+        System.out.println("User " + event.userId() + " reacted with " + event.emoji().name()));
 
 client.on("GUILD_CREATE", GuildCreateEvent.class, event ->
         System.out.println("Connected to guild " + event.name() + " with " + event.memberCount() + " members"));
@@ -172,6 +176,7 @@ Use `client.api()` for convenient access to common REST resources:
 JsonNode currentUser = client.api().getCurrentUser();
 JsonNode channel = client.api().getChannel("1234567890");
 client.api().deleteMessage("1234567890", "9876543210");
+client.api().addReaction("1234567890", "9876543210", "👍");
 ```
 
 For custom calls, use:

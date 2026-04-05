@@ -55,6 +55,26 @@ class DiscordApiTest {
         assertThrows(IllegalArgumentException.class, () -> api.deleteMessage("123", " "));
     }
 
+    @Test
+    void addReactionUsesExpectedRoute() {
+        CapturingHttpClient httpClient = new CapturingHttpClient("{}", 204);
+        DiscordApi api = buildApi(httpClient);
+
+        api.addReaction("123", "456", "wave:987");
+
+        assertEquals(
+                "/api/v10/channels/123/messages/456/reactions/wave:987/@me",
+                httpClient.lastRequest.uri().getPath()
+        );
+    }
+
+    @Test
+    void removeUserReactionRejectsBlankUserId() {
+        DiscordApi api = buildApi(new CapturingHttpClient("{}", 200));
+
+        assertThrows(IllegalArgumentException.class, () -> api.removeUserReaction("123", "456", "👍", " "));
+    }
+
     private static DiscordApi buildApi(HttpClient httpClient) {
         DiscordRestClient restClient = new DiscordRestClient(
                 httpClient,

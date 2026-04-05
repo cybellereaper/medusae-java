@@ -7,6 +7,8 @@ import com.github.cybellereaper.gateway.events.GuildCreateEvent;
 import com.github.cybellereaper.gateway.events.InteractionCreateEvent;
 import com.github.cybellereaper.gateway.events.MessageCreateEvent;
 import com.github.cybellereaper.gateway.events.MessageDeleteEvent;
+import com.github.cybellereaper.gateway.events.MessageReactionAddEvent;
+import com.github.cybellereaper.gateway.events.MessageReactionRemoveEvent;
 import com.github.cybellereaper.gateway.events.ReadyEvent;
 import com.github.cybellereaper.http.DiscordRestClient;
 import org.junit.jupiter.api.Test;
@@ -112,12 +114,16 @@ class DiscordGatewayClientTest {
         AtomicReference<ReadyEvent> readyEventRef = new AtomicReference<>();
         AtomicReference<MessageCreateEvent> messageCreateEventRef = new AtomicReference<>();
         AtomicReference<MessageDeleteEvent> messageDeleteEventRef = new AtomicReference<>();
+        AtomicReference<MessageReactionAddEvent> messageReactionAddEventRef = new AtomicReference<>();
+        AtomicReference<MessageReactionRemoveEvent> messageReactionRemoveEventRef = new AtomicReference<>();
         AtomicReference<GuildCreateEvent> guildCreateEventRef = new AtomicReference<>();
         AtomicReference<InteractionCreateEvent> interactionCreateEventRef = new AtomicReference<>();
 
         client.on("READY", ReadyEvent.class, readyEventRef::set);
         client.on("MESSAGE_CREATE", MessageCreateEvent.class, messageCreateEventRef::set);
         client.on("MESSAGE_DELETE", MessageDeleteEvent.class, messageDeleteEventRef::set);
+        client.on("MESSAGE_REACTION_ADD", MessageReactionAddEvent.class, messageReactionAddEventRef::set);
+        client.on("MESSAGE_REACTION_REMOVE", MessageReactionRemoveEvent.class, messageReactionRemoveEventRef::set);
         client.on("GUILD_CREATE", GuildCreateEvent.class, guildCreateEventRef::set);
         client.on("INTERACTION_CREATE", InteractionCreateEvent.class, interactionCreateEventRef::set);
 
@@ -129,6 +135,12 @@ class DiscordGatewayClientTest {
                 """, true);
         client.onText(new StubWebSocket(), """
                 {"op":0,"t":"MESSAGE_DELETE","d":{"id":"m1","channel_id":"c1","guild_id":"g1"}}
+                """, true);
+        client.onText(new StubWebSocket(), """
+                {"op":0,"t":"MESSAGE_REACTION_ADD","d":{"user_id":"u1","channel_id":"c1","message_id":"m1","guild_id":"g1","emoji":{"name":"👍","id":null,"animated":false}}}
+                """, true);
+        client.onText(new StubWebSocket(), """
+                {"op":0,"t":"MESSAGE_REACTION_REMOVE","d":{"user_id":"u1","channel_id":"c1","message_id":"m1","guild_id":"g1","emoji":{"name":"👍","id":null,"animated":false}}}
                 """, true);
         client.onText(new StubWebSocket(), """
                 {"op":0,"t":"GUILD_CREATE","d":{"id":"g1","name":"Jellycord","member_count":42,"unavailable":false}}
@@ -145,6 +157,10 @@ class DiscordGatewayClientTest {
 
         assertEquals("m1", messageDeleteEventRef.get().id());
         assertEquals("c1", messageDeleteEventRef.get().channelId());
+        assertEquals("u1", messageReactionAddEventRef.get().userId());
+        assertEquals("👍", messageReactionAddEventRef.get().emoji().name());
+        assertEquals("m1", messageReactionRemoveEventRef.get().messageId());
+        assertEquals("g1", messageReactionRemoveEventRef.get().guildId());
 
         assertEquals("g1", guildCreateEventRef.get().id());
         assertEquals(42, guildCreateEventRef.get().memberCount());

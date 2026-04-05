@@ -29,6 +29,8 @@ Use these directly with `on(eventType, eventClass, listener)`:
 - `ReadyEvent` (`READY`)
 - `MessageCreateEvent` (`MESSAGE_CREATE`)
 - `MessageDeleteEvent` (`MESSAGE_DELETE`)
+- `MessageReactionAddEvent` (`MESSAGE_REACTION_ADD`)
+- `MessageReactionRemoveEvent` (`MESSAGE_REACTION_REMOVE`)
 - `GuildCreateEvent` (`GUILD_CREATE`)
 - `InteractionCreateEvent` (`INTERACTION_CREATE`)
 
@@ -126,6 +128,12 @@ client.onSlashCommandContext("echo", interaction -> {
 - `getChannel(String channelId)`
 - `getGuild(String guildId)`
 - `deleteMessage(String channelId, String messageId)`
+- `addReaction(String channelId, String messageId, String emoji)`
+- `removeOwnReaction(String channelId, String messageId, String emoji)`
+- `removeUserReaction(String channelId, String messageId, String emoji, String userId)`
+- `getReactions(String channelId, String messageId, String emoji)`
+- `clearReaction(String channelId, String messageId, String emoji)`
+- `clearReactions(String channelId, String messageId)`
 - `request(String method, String path, Map<String, Object> body)`
 
 ### Validation rules
