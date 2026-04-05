@@ -168,6 +168,42 @@ client.onModalSubmitContext("feedback_modal", interaction -> {
 });
 ```
 
+## Prefix-Based Interaction Routing
+
+When your `custom_id` values embed state (for example, `ticket:close:42`), you can register one handler for a whole namespace:
+
+```java
+client.onComponentInteractionPrefix("ticket:", interaction -> {
+    String customId = interaction.path("data").path("custom_id").asText();
+    client.respondEphemeral(interaction, "Handled ticket action: " + customId);
+});
+
+client.onComponentInteractionContextPrefix("ticket:", interaction -> {
+    String customId = interaction.customId();
+    client.respondEphemeral(interaction, "Typed handler for: " + customId);
+});
+```
+
+Modal handlers support the same pattern:
+
+```java
+client.onModalSubmitPrefix("feedback:", interaction -> {
+    String modalId = interaction.path("data").path("custom_id").asText();
+    client.respondEphemeral(interaction, "Received modal: " + modalId);
+});
+
+client.onModalSubmitContextPrefix("feedback:", interaction -> {
+    String modalId = interaction.context().customId();
+    String text = interaction.parameters().getString("feedback_text");
+    client.respondEphemeral(interaction.context(), "Modal " + modalId + " => " + text);
+});
+```
+
+Routing precedence:
+- Exact `custom_id` handlers run first.
+- If no exact handler exists, Jellycord tries prefix handlers.
+- If multiple prefixes match, Jellycord chooses the **longest matching prefix**.
+
 ## REST API Helper
 
 Use `client.api()` for convenient access to common REST resources:
