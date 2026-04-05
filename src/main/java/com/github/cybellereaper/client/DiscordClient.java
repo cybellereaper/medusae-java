@@ -157,7 +157,9 @@ public final class DiscordClient implements AutoCloseable {
 
     public void syncGlobalSlashCommands(List<SlashCommandDefinition> commands) {
         Objects.requireNonNull(commands, "commands");
-        restClient.bulkOverwriteGlobalApplicationCommands(resolveApplicationId(), commands);
+        String appId = resolveApplicationId();
+        deleteExistingGlobalCommands(appId);
+        registerCommands(commands, command -> restClient.createGlobalApplicationCommand(appId, command));
     }
 
     public JsonNode registerGuildSlashCommand(String guildId, String commandName, String description) {
@@ -187,7 +189,9 @@ public final class DiscordClient implements AutoCloseable {
     public void syncGuildSlashCommands(String guildId, List<SlashCommandDefinition> commands) {
         requireNonBlank(guildId, "guildId");
         Objects.requireNonNull(commands, "commands");
-        restClient.bulkOverwriteGuildApplicationCommands(resolveApplicationId(), guildId, commands);
+        String appId = resolveApplicationId();
+        deleteExistingGuildCommands(appId, guildId);
+        registerCommands(commands, command -> restClient.createGuildApplicationCommand(appId, guildId, command));
     }
 
     public void respondWithMessage(JsonNode interaction, String content) {
@@ -313,6 +317,29 @@ public final class DiscordClient implements AutoCloseable {
         for (SlashCommandDefinition command : commands) {
             registrar.accept(command);
         }
+    }
+
+    private void deleteExistingGlobalCommands(String applicationId) {
+        for (JsonNode existingCommand : restClient.getGlobalApplicationCommands(applicationId)) {
+            String commandId = requireCommandId(existingCommand);
+            restClient.deleteGlobalApplicationCommand(applicationId, commandId);
+        }
+    }
+
+    private void deleteExistingGuildCommands(String applicationId, String guildId) {
+        for (JsonNode existingCommand : restClient.getGuildApplicationCommands(applicationId, guildId)) {
+            String commandId = requireCommandId(existingCommand);
+            restClient.deleteGuildApplicationCommand(applicationId, guildId, commandId);
+        }
+    }
+
+    private static String requireCommandId(JsonNode command) {
+        Objects.requireNonNull(command, "command");
+        String commandId = command.path("id").asText("");
+        if (commandId.isBlank()) {
+            throw new IllegalStateException("Discord command payload is missing id");
+        }
+        return commandId;
     }
 
     private String resolveApplicationId() {

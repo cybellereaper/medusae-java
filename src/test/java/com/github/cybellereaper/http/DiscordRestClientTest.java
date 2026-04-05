@@ -64,4 +64,36 @@ class DiscordRestClientTest {
                 () -> restClient.bulkOverwriteGlobalApplicationCommands("app-id", List.of(SlashCommandDefinition.simple("ping", "Pong"), null))
         );
     }
+
+    @Test
+    void rejectsBlankApplicationIdWhenListingGlobalCommands() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> restClient.getGlobalApplicationCommands(" ")
+        );
+    }
+
+    @Test
+    void rejectsBlankGuildIdWhenListingGuildCommands() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> restClient.getGuildApplicationCommands("app-id", "")
+        );
+    }
+
+    @Test
+    void rejectsBlankCommandIdWhenDeletingGlobalCommand() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> restClient.deleteGlobalApplicationCommand("app-id", " ")
+        );
+    }
+
+    @Test
+    void rejectsBlankCommandIdWhenDeletingGuildCommand() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> restClient.deleteGuildApplicationCommand("app-id", "guild-id", "")
+        );
+    }
 }

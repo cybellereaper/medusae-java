@@ -82,6 +82,30 @@ public final class DiscordRestClient {
         return request("POST", "/applications/" + applicationId + "/commands", command.toRequestPayload());
     }
 
+    public JsonNode getGlobalApplicationCommands(String applicationId) {
+        requireNonBlank(applicationId, "applicationId");
+        return request("GET", "/applications/" + applicationId + "/commands", null);
+    }
+
+    public JsonNode getGuildApplicationCommands(String applicationId, String guildId) {
+        requireNonBlank(applicationId, "applicationId");
+        requireNonBlank(guildId, "guildId");
+        return request("GET", "/applications/" + applicationId + "/guilds/" + guildId + "/commands", null);
+    }
+
+    public JsonNode deleteGlobalApplicationCommand(String applicationId, String commandId) {
+        requireNonBlank(applicationId, "applicationId");
+        requireNonBlank(commandId, "commandId");
+        return request("DELETE", "/applications/" + applicationId + "/commands/" + commandId, null);
+    }
+
+    public JsonNode deleteGuildApplicationCommand(String applicationId, String guildId, String commandId) {
+        requireNonBlank(applicationId, "applicationId");
+        requireNonBlank(guildId, "guildId");
+        requireNonBlank(commandId, "commandId");
+        return request("DELETE", "/applications/" + applicationId + "/guilds/" + guildId + "/commands/" + commandId, null);
+    }
+
     public JsonNode bulkOverwriteGlobalApplicationCommands(String applicationId, List<SlashCommandDefinition> commands) {
         requireNonBlank(applicationId, "applicationId");
         return request("PUT", "/applications/" + applicationId + "/commands", toCommandPayloads(commands));
