@@ -22,11 +22,11 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
     private final ObjectMapper objectMapper;
     private final DiscordClientConfig config;
     private final DiscordRestClient restClient;
+    private final Executor listenerExecutor;
+    private final ScheduledExecutorService scheduler;
 
     private final Map<String, CopyOnWriteArrayList<Consumer<JsonNode>>> listeners = new ConcurrentHashMap<>();
     private final Map<String, CopyOnWriteArrayList<TypedEventListener<?>>> typedListeners = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService scheduler =
-            Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().name("discord25-heartbeat-", 0).factory());
 
     private final StringBuilder textBuffer = new StringBuilder();
 
@@ -45,10 +45,30 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
             DiscordClientConfig config,
             DiscordRestClient restClient
     ) {
+        this(
+                httpClient,
+                objectMapper,
+                config,
+                restClient,
+                Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("discord25-event-", 0).factory()),
+                Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().name("discord25-heartbeat-", 0).factory())
+        );
+    }
+
+    DiscordGatewayClient(
+            HttpClient httpClient,
+            ObjectMapper objectMapper,
+            DiscordClientConfig config,
+            DiscordRestClient restClient,
+            Executor listenerExecutor,
+            ScheduledExecutorService scheduler
+    ) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.config = config;
         this.restClient = restClient;
+        this.listenerExecutor = Objects.requireNonNull(listenerExecutor, "listenerExecutor");
+        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
     }
 
     public void connect() {
@@ -205,7 +225,7 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
         List<Consumer<JsonNode>> eventListeners = listeners.get(eventType);
         if (eventListeners != null) {
             for (Consumer<JsonNode> listener : eventListeners) {
-                listener.accept(data);
+                dispatchAsync(() -> listener.accept(data));
             }
         }
 
@@ -213,9 +233,19 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
         if (typedEventListeners != null) {
             Map<TypedEventKey, Object> typedEventCache = new HashMap<>(typedEventListeners.size());
             for (TypedEventListener<?> typedListener : typedEventListeners) {
-                typedListener.accept(data, typedEventCache, objectMapper);
+                dispatchAsync(() -> typedListener.accept(data, typedEventCache, objectMapper));
             }
         }
+    }
+
+    private void dispatchAsync(Runnable task) {
+        listenerExecutor.execute(() -> {
+            try {
+                task.run();
+            } catch (RuntimeException exception) {
+                System.err.println("Gateway event listener failed: " + exception.getMessage());
+            }
+        });
     }
 
     private void startHeartbeat(long intervalMillis) {
@@ -395,6 +425,9 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
             heartbeatTask.cancel(true);
         }
         scheduler.shutdownNow();
+        if (listenerExecutor instanceof ExecutorService executorService) {
+            executorService.shutdownNow();
+        }
 
         if (webSocket != null) {
             try {
