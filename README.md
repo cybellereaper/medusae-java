@@ -204,6 +204,16 @@ Routing precedence:
 - If no exact handler exists, Jellycord tries prefix handlers.
 - If multiple prefixes match, Jellycord chooses the **longest matching prefix**.
 
+## Command Registration Resilience
+
+Command registration/sync calls now automatically retry after transient outages:
+
+- If `register*Command(...)` or `sync*SlashCommands(...)` fails (for example, while offline), Jellycord stores that operation in an internal backlog.
+- On the next `READY` dispatch (including reconnect/resume flows), Jellycord retries the pending operations.
+- For repeated sync attempts with the same target, Jellycord keeps only the newest pending operation.
+
+This makes command setup resilient across temporary disconnects and gateway reloads without extra user code.
+
 ## REST API Helper
 
 Use `client.api()` for convenient access to common REST resources:

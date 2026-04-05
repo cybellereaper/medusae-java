@@ -16,6 +16,7 @@ public final class DiscordClient implements AutoCloseable {
     private final DiscordGatewayClient gatewayClient;
     private final SlashCommandRouter slashCommandRouter;
     private final DiscordApi api;
+    private final CommandOperationBacklog commandBacklog = new CommandOperationBacklog();
 
     private volatile String applicationId;
 
@@ -25,6 +26,7 @@ public final class DiscordClient implements AutoCloseable {
         this.slashCommandRouter = new SlashCommandRouter(restClient::createInteractionResponse);
         this.api = new DiscordApi(restClient);
         this.gatewayClient.on("INTERACTION_CREATE", slashCommandRouter::handleInteraction);
+        this.gatewayClient.on("READY", ignored -> commandBacklog.flush());
     }
 
     public static DiscordClient create(DiscordClientConfig config) {
@@ -140,7 +142,11 @@ public final class DiscordClient implements AutoCloseable {
 
     public JsonNode registerGlobalSlashCommand(SlashCommandDefinition command) {
         Objects.requireNonNull(command, "command");
-        return restClient.createGlobalApplicationCommand(resolveApplicationId(), command);
+        String operationKey = "global:create:" + commandFingerprint(command);
+        return commandBacklog.execute(
+                operationKey,
+                () -> restClient.createGlobalApplicationCommand(resolveApplicationId(), command)
+        );
     }
 
     public JsonNode registerGlobalUserContextMenu(String commandName) {
@@ -157,8 +163,10 @@ public final class DiscordClient implements AutoCloseable {
 
     public void syncGlobalSlashCommands(List<SlashCommandDefinition> commands) {
         Objects.requireNonNull(commands, "commands");
-        String appId = resolveApplicationId();
-        restClient.bulkOverwriteGlobalApplicationCommands(appId, commands);
+        commandBacklog.execute(
+                "global:sync",
+                () -> restClient.bulkOverwriteGlobalApplicationCommands(resolveApplicationId(), commands)
+        );
     }
 
     public JsonNode registerGuildSlashCommand(String guildId, String commandName, String description) {
@@ -169,7 +177,11 @@ public final class DiscordClient implements AutoCloseable {
         requireNonBlank(guildId, "guildId");
         Objects.requireNonNull(command, "command");
 
-        return restClient.createGuildApplicationCommand(resolveApplicationId(), guildId, command);
+        String operationKey = "guild:create:" + guildId + ":" + commandFingerprint(command);
+        return commandBacklog.execute(
+                operationKey,
+                () -> restClient.createGuildApplicationCommand(resolveApplicationId(), guildId, command)
+        );
     }
 
     public JsonNode registerGuildUserContextMenu(String guildId, String commandName) {
@@ -188,8 +200,11 @@ public final class DiscordClient implements AutoCloseable {
     public void syncGuildSlashCommands(String guildId, List<SlashCommandDefinition> commands) {
         requireNonBlank(guildId, "guildId");
         Objects.requireNonNull(commands, "commands");
-        String appId = resolveApplicationId();
-        restClient.bulkOverwriteGuildApplicationCommands(appId, guildId, commands);
+        String operationKey = "guild:sync:" + guildId;
+        commandBacklog.execute(
+                operationKey,
+                () -> restClient.bulkOverwriteGuildApplicationCommands(resolveApplicationId(), guildId, commands)
+        );
     }
 
     public void respondWithMessage(JsonNode interaction, String content) {
@@ -329,6 +344,11 @@ public final class DiscordClient implements AutoCloseable {
             String commandId = requireCommandId(existingCommand);
             restClient.deleteGuildApplicationCommand(applicationId, guildId, commandId);
         }
+    }
+
+
+    private static String commandFingerprint(SlashCommandDefinition command) {
+        return Integer.toHexString(command.toRequestPayload().hashCode());
     }
 
     private static String requireCommandId(JsonNode command) {
