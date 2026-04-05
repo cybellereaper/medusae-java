@@ -2,7 +2,6 @@ package com.github.cybellereaper.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,6 +11,10 @@ import java.util.function.Consumer;
 final class SlashCommandRouter {
     private static final int PING_INTERACTION_TYPE = 1;
     private static final int APPLICATION_COMMAND_INTERACTION_TYPE = 2;
+
+    private static final int CHAT_INPUT_COMMAND_TYPE = 1;
+    private static final int USER_CONTEXT_COMMAND_TYPE = 2;
+    private static final int MESSAGE_CONTEXT_COMMAND_TYPE = 3;
     private static final int MESSAGE_COMPONENT_INTERACTION_TYPE = 3;
     private static final int APPLICATION_COMMAND_AUTOCOMPLETE_INTERACTION_TYPE = 4;
     private static final int MODAL_SUBMIT_INTERACTION_TYPE = 5;
@@ -22,9 +25,9 @@ final class SlashCommandRouter {
     private static final int DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE = 6;
     private static final int AUTOCOMPLETE_RESPONSE_TYPE = 8;
 
-    private static final int EPHEMERAL_FLAG = 1 << 6;
-
     private final Map<String, Consumer<JsonNode>> slashHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<JsonNode>> userContextMenuHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<JsonNode>> messageContextMenuHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> componentHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> modalHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> autocompleteHandlers = new ConcurrentHashMap<>();
@@ -50,6 +53,14 @@ final class SlashCommandRouter {
         registerUniqueHandler(autocompleteHandlers, commandName, "autocomplete", handler);
     }
 
+    void registerUserContextMenuHandler(String commandName, Consumer<JsonNode> handler) {
+        registerUniqueHandler(userContextMenuHandlers, commandName, "user context menu", handler);
+    }
+
+    void registerMessageContextMenuHandler(String commandName, Consumer<JsonNode> handler) {
+        registerUniqueHandler(messageContextMenuHandlers, commandName, "message context menu", handler);
+    }
+
     void handleInteraction(JsonNode interaction) {
         if (interaction == null) {
             return;
@@ -62,7 +73,14 @@ final class SlashCommandRouter {
         }
 
         if (interactionType == APPLICATION_COMMAND_INTERACTION_TYPE) {
-            dispatchByName(interaction, slashHandlers, "name");
+            int commandType = interaction.path("data").path("type").asInt(CHAT_INPUT_COMMAND_TYPE);
+            if (commandType == USER_CONTEXT_COMMAND_TYPE) {
+                dispatchByName(interaction, userContextMenuHandlers, "name");
+            } else if (commandType == MESSAGE_CONTEXT_COMMAND_TYPE) {
+                dispatchByName(interaction, messageContextMenuHandlers, "name");
+            } else {
+                dispatchByName(interaction, slashHandlers, "name");
+            }
             return;
         }
 
@@ -81,19 +99,24 @@ final class SlashCommandRouter {
     }
 
     void respondWithMessage(JsonNode interaction, String content) {
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, List.of(), false));
+        respondWithMessage(interaction, DiscordMessage.ofContent(content));
+    }
+
+    void respondWithMessage(JsonNode interaction, DiscordMessage message) {
+        Objects.requireNonNull(message, "message");
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, message.toPayload());
     }
 
     void respondWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, embeds, false));
+        respondWithMessage(interaction, DiscordMessage.ofEmbeds(content, embeds));
     }
 
     void respondEphemeral(JsonNode interaction, String content) {
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, List.of(), true));
+        respondWithMessage(interaction, DiscordMessage.ofContent(content).asEphemeral());
     }
 
     void respondEphemeralWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, embeds, true));
+        respondWithMessage(interaction, DiscordMessage.ofEmbeds(content, embeds).asEphemeral());
     }
 
     void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
@@ -129,23 +152,6 @@ final class SlashCommandRouter {
         }
 
         return null;
-    }
-
-    private static Map<String, Object> createMessageData(String content, List<DiscordEmbed> embeds, boolean ephemeral) {
-        List<DiscordEmbed> embedList = embeds == null ? List.of() : embeds;
-        Map<String, Object> data = new LinkedHashMap<>();
-
-        if (content != null && !content.isBlank()) {
-            data.put("content", content);
-        }
-        if (!embedList.isEmpty()) {
-            data.put("embeds", embedList.stream().map(DiscordEmbed::toPayload).toList());
-        }
-        if (ephemeral) {
-            data.put("flags", EPHEMERAL_FLAG);
-        }
-
-        return data;
     }
 
     private void dispatchByName(JsonNode interaction, Map<String, Consumer<JsonNode>> handlers, String keyFieldName) {

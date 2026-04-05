@@ -6,9 +6,7 @@ import com.github.cybellereaper.gateway.DiscordGatewayClient;
 import com.github.cybellereaper.http.DiscordRestClient;
 
 import java.net.http.HttpClient;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -52,6 +50,14 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.registerAutocompleteHandler(commandName, listener);
     }
 
+    public void onUserContextMenu(String commandName, Consumer<JsonNode> listener) {
+        slashCommandRouter.registerUserContextMenuHandler(commandName, listener);
+    }
+
+    public void onMessageContextMenu(String commandName, Consumer<JsonNode> listener) {
+        slashCommandRouter.registerMessageContextMenuHandler(commandName, listener);
+    }
+
     public void onComponentInteraction(String customId, Consumer<JsonNode> listener) {
         slashCommandRouter.registerComponentHandler(customId, listener);
     }
@@ -69,6 +75,14 @@ public final class DiscordClient implements AutoCloseable {
         return restClient.createGlobalApplicationCommand(resolveApplicationId(), command);
     }
 
+    public JsonNode registerGlobalUserContextMenu(String commandName) {
+        return registerGlobalSlashCommand(SlashCommandDefinition.userContextMenu(commandName));
+    }
+
+    public JsonNode registerGlobalMessageContextMenu(String commandName) {
+        return registerGlobalSlashCommand(SlashCommandDefinition.messageContextMenu(commandName));
+    }
+
     public void registerGlobalSlashCommands(List<SlashCommandDefinition> commands) {
         registerCommands(commands, this::registerGlobalSlashCommand);
     }
@@ -84,13 +98,25 @@ public final class DiscordClient implements AutoCloseable {
         return restClient.createGuildApplicationCommand(resolveApplicationId(), guildId, command);
     }
 
+    public JsonNode registerGuildUserContextMenu(String guildId, String commandName) {
+        return registerGuildSlashCommand(guildId, SlashCommandDefinition.userContextMenu(commandName));
+    }
+
+    public JsonNode registerGuildMessageContextMenu(String guildId, String commandName) {
+        return registerGuildSlashCommand(guildId, SlashCommandDefinition.messageContextMenu(commandName));
+    }
+
     public void registerGuildSlashCommands(String guildId, List<SlashCommandDefinition> commands) {
         requireNonBlank(guildId, "guildId");
         registerCommands(commands, command -> registerGuildSlashCommand(guildId, command));
     }
 
     public void respondWithMessage(JsonNode interaction, String content) {
-        slashCommandRouter.respondWithMessage(interaction, content);
+        respondWithMessage(interaction, DiscordMessage.ofContent(content));
+    }
+
+    public void respondWithMessage(JsonNode interaction, DiscordMessage message) {
+        slashCommandRouter.respondWithMessage(interaction, message);
     }
 
     public void respondWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
@@ -122,21 +148,17 @@ public final class DiscordClient implements AutoCloseable {
     }
 
     public void sendMessage(String channelId, String content) {
-        restClient.sendMessage(channelId, Map.of("content", content));
+        sendMessage(channelId, DiscordMessage.ofContent(content));
+    }
+
+    public void sendMessage(String channelId, DiscordMessage message) {
+        requireNonBlank(channelId, "channelId");
+        Objects.requireNonNull(message, "message");
+        restClient.sendMessage(channelId, message.toPayload());
     }
 
     public void sendMessageWithEmbeds(String channelId, String content, List<DiscordEmbed> embeds) {
-        requireNonBlank(channelId, "channelId");
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        if (content != null && !content.isBlank()) {
-            payload.put("content", content);
-        }
-        if (embeds != null && !embeds.isEmpty()) {
-            payload.put("embeds", embeds.stream().map(DiscordEmbed::toPayload).toList());
-        }
-
-        restClient.sendMessage(channelId, payload);
+        sendMessage(channelId, DiscordMessage.ofEmbeds(content, embeds));
     }
 
     @Override
