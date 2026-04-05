@@ -8,7 +8,8 @@ public record SlashCommandOptionDefinition(
         int type,
         String name,
         String description,
-        boolean required
+        boolean required,
+        boolean autocomplete
 ) {
     public static final int STRING = 3;
     public static final int INTEGER = 4;
@@ -36,7 +37,11 @@ public record SlashCommandOptionDefinition(
     }
 
     public static SlashCommandOptionDefinition string(String name, String description, boolean required) {
-        return new SlashCommandOptionDefinition(STRING, name, description, required);
+        return new SlashCommandOptionDefinition(STRING, name, description, required, false);
+    }
+
+    public static SlashCommandOptionDefinition autocompletedString(String name, String description, boolean required) {
+        return new SlashCommandOptionDefinition(STRING, name, description, required, true);
     }
 
     Map<String, Object> toRequestPayload() {
@@ -45,6 +50,9 @@ public record SlashCommandOptionDefinition(
         payload.put("name", name);
         payload.put("description", description);
         payload.put("required", required);
+        if (autocomplete) {
+            payload.put("autocomplete", true);
+        }
         return payload;
     }
 }

@@ -2,6 +2,8 @@ package com.github.cybellereaper.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,18 +13,21 @@ final class SlashCommandRouter {
     private static final int PING_INTERACTION_TYPE = 1;
     private static final int APPLICATION_COMMAND_INTERACTION_TYPE = 2;
     private static final int MESSAGE_COMPONENT_INTERACTION_TYPE = 3;
+    private static final int APPLICATION_COMMAND_AUTOCOMPLETE_INTERACTION_TYPE = 4;
     private static final int MODAL_SUBMIT_INTERACTION_TYPE = 5;
 
+    private static final int PONG_RESPONSE_TYPE = 1;
     private static final int CHANNEL_MESSAGE_RESPONSE_TYPE = 4;
     private static final int DEFERRED_CHANNEL_MESSAGE_RESPONSE_TYPE = 5;
     private static final int DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE = 6;
-    private static final int PONG_RESPONSE_TYPE = 1;
+    private static final int AUTOCOMPLETE_RESPONSE_TYPE = 8;
 
     private static final int EPHEMERAL_FLAG = 1 << 6;
 
     private final Map<String, Consumer<JsonNode>> slashHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> componentHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> modalHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<JsonNode>> autocompleteHandlers = new ConcurrentHashMap<>();
     private final InteractionResponder responder;
 
     SlashCommandRouter(InteractionResponder responder) {
@@ -41,6 +46,10 @@ final class SlashCommandRouter {
         registerUniqueHandler(modalHandlers, customId, "modal", handler);
     }
 
+    void registerAutocompleteHandler(String commandName, Consumer<JsonNode> handler) {
+        registerUniqueHandler(autocompleteHandlers, commandName, "autocomplete", handler);
+    }
+
     void handleInteraction(JsonNode interaction) {
         if (interaction == null) {
             return;
@@ -57,19 +66,41 @@ final class SlashCommandRouter {
             return;
         }
 
+        if (interactionType == APPLICATION_COMMAND_AUTOCOMPLETE_INTERACTION_TYPE) {
+            dispatchByName(interaction, autocompleteHandlers, "name");
+            return;
+        }
+
         if (interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE || interactionType == MODAL_SUBMIT_INTERACTION_TYPE) {
-            dispatchByName(interaction, interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE ? componentHandlers : modalHandlers, "custom_id");
+            dispatchByName(
+                    interaction,
+                    interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE ? componentHandlers : modalHandlers,
+                    "custom_id"
+            );
         }
     }
 
     void respondWithMessage(JsonNode interaction, String content) {
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, Map.of("content", content));
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, List.of(), false));
+    }
+
+    void respondWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, embeds, false));
     }
 
     void respondEphemeral(JsonNode interaction, String content) {
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, Map.of(
-                "content", content,
-                "flags", EPHEMERAL_FLAG
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, List.of(), true));
+    }
+
+    void respondEphemeralWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, createMessageData(content, embeds, true));
+    }
+
+    void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
+        Objects.requireNonNull(choices, "choices");
+
+        respond(interaction, AUTOCOMPLETE_RESPONSE_TYPE, Map.of(
+                "choices", choices.stream().map(AutocompleteChoice::toPayload).toList()
         ));
     }
 
@@ -98,6 +129,23 @@ final class SlashCommandRouter {
         }
 
         return null;
+    }
+
+    private static Map<String, Object> createMessageData(String content, List<DiscordEmbed> embeds, boolean ephemeral) {
+        List<DiscordEmbed> embedList = embeds == null ? List.of() : embeds;
+        Map<String, Object> data = new LinkedHashMap<>();
+
+        if (content != null && !content.isBlank()) {
+            data.put("content", content);
+        }
+        if (!embedList.isEmpty()) {
+            data.put("embeds", embedList.stream().map(DiscordEmbed::toPayload).toList());
+        }
+        if (ephemeral) {
+            data.put("flags", EPHEMERAL_FLAG);
+        }
+
+        return data;
     }
 
     private void dispatchByName(JsonNode interaction, Map<String, Consumer<JsonNode>> handlers, String keyFieldName) {

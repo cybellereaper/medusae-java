@@ -1,5 +1,7 @@
+import com.github.cybellereaper.client.AutocompleteChoice;
 import com.github.cybellereaper.client.DiscordClient;
 import com.github.cybellereaper.client.DiscordClientConfig;
+import com.github.cybellereaper.client.DiscordEmbed;
 import com.github.cybellereaper.client.SlashCommandDefinition;
 import com.github.cybellereaper.client.SlashCommandOptionDefinition;
 import com.github.cybellereaper.gateway.GatewayIntent;
@@ -24,7 +26,7 @@ void main() throws Exception {
                 new SlashCommandDefinition(
                         "echo",
                         "Echo input text back",
-                        List.of(SlashCommandOptionDefinition.string("text", "Text to echo", true))
+                        List.of(SlashCommandOptionDefinition.autocompletedString("text", "Text to echo", true))
                 )
         );
 
@@ -39,11 +41,16 @@ void main() throws Exception {
             String channelId = message.path("channel_id").asText();
 
             if ("!ping".equals(content)) {
-                client.sendMessage(channelId, "pong");
+                client.sendMessageWithEmbeds(channelId, "pong", List.of(
+                        new DiscordEmbed("Legacy Ping", "Handled via message command", 0x57F287)
+                ));
             }
         });
 
-        client.onSlashCommand("ping", interaction -> client.respondWithMessage(interaction, "pong"));
+        client.onSlashCommand("ping", interaction -> client.respondWithEmbeds(interaction, "pong", List.of(
+                new DiscordEmbed("Slash Ping", "Interaction response", 0x5865F2)
+        )));
+
         client.onSlashCommand("echo", interaction -> {
             String text = client.getStringOption(interaction, "text");
             if (text == null || text.isBlank()) {
@@ -51,12 +58,26 @@ void main() throws Exception {
                 return;
             }
 
-            client.respondWithMessage(interaction, text);
+            client.respondWithEmbeds(interaction, text, List.of(new DiscordEmbed("Echo", text, 0xFEE75C)));
         });
 
-        client.onComponentInteraction("confirm_button", interaction -> client.respondEphemeral(interaction, "Confirmed ✅"));
+        client.onAutocomplete("echo", interaction -> {
+            String prefix = client.getStringOption(interaction, "text");
+            String safePrefix = prefix == null ? "" : prefix.toLowerCase();
+            List<AutocompleteChoice> choices = List.of("hello", "hey", "hola", "bonjour").stream()
+                    .filter(choice -> choice.startsWith(safePrefix))
+                    .limit(25)
+                    .map(choice -> new AutocompleteChoice(choice, choice))
+                    .toList();
+
+            client.respondWithAutocompleteChoices(interaction, choices);
+        });
+
+        client.onComponentInteraction("confirm_button", client::deferUpdate);
         client.onModalSubmit("feedback_modal", interaction ->
-                client.respondEphemeral(interaction, "Thanks for the feedback!"));
+                client.respondEphemeralWithEmbeds(interaction, "Thanks for the feedback!", List.of(
+                        new DiscordEmbed("Feedback", "Received successfully", 0x57F287)
+                )));
 
         client.login();
         Thread.currentThread().join();

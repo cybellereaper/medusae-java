@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,6 +25,19 @@ class SlashCommandRouterTest {
         router.handleInteraction(interactionPayload(2, "ping", null, "42", "token-value", null));
 
         assertEquals(1, invocationCount.get());
+    }
+
+    @Test
+    void routesAutocompleteInteractionsByCommandName() throws Exception {
+        AtomicInteger autocompleteCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerAutocompleteHandler("echo", ignored -> autocompleteCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(4, "echo", null, "42", "token-value", "he"));
+
+        assertEquals(1, autocompleteCount.get());
     }
 
     @Test
@@ -64,6 +78,41 @@ class SlashCommandRouterTest {
 
         assertEquals("hidden", responseData.get().get("content"));
         assertEquals(64, responseData.get().get("flags"));
+    }
+
+    @Test
+    void respondWithEmbedsIncludesEmbedPayload() throws Exception {
+        AtomicReference<Map<String, Object>> responseData = new AtomicReference<>();
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> responseData.set(data));
+
+        router.respondWithEmbeds(
+                interactionPayload(2, "ping", null, "123", "abc", null),
+                "hello",
+                List.of(new DiscordEmbed("Title", "Description", 12345))
+        );
+
+        assertEquals("hello", responseData.get().get("content"));
+        assertTrue(responseData.get().containsKey("embeds"));
+    }
+
+    @Test
+    void respondWithAutocompleteChoicesUsesCorrectResponseType() throws Exception {
+        AtomicReference<Integer> responseType = new AtomicReference<>();
+        AtomicReference<Map<String, Object>> responseData = new AtomicReference<>();
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+            responseType.set(type);
+            responseData.set(data);
+        });
+
+        router.respondWithAutocompleteChoices(
+                interactionPayload(4, "echo", null, "123", "abc", "he"),
+                List.of(new AutocompleteChoice("hello", "hello"))
+        );
+
+        assertEquals(8, responseType.get());
+        assertTrue(responseData.get().containsKey("choices"));
     }
 
     @Test
@@ -108,7 +157,7 @@ class SlashCommandRouterTest {
             String optionValue
     ) throws Exception {
         String data = switch (type) {
-            case 2 -> optionValue == null
+            case 2, 4 -> optionValue == null
                     ? "{\"name\": \"%s\"}".formatted(commandName)
                     : "{\"name\": \"%s\", \"options\": [{\"name\": \"text\", \"value\": \"%s\"}]}".formatted(commandName, optionValue);
             case 3, 5 -> "{\"custom_id\": \"%s\"}".formatted(customId);

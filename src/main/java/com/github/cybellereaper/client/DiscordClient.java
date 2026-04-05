@@ -6,7 +6,9 @@ import com.github.cybellereaper.gateway.DiscordGatewayClient;
 import com.github.cybellereaper.http.DiscordRestClient;
 
 import java.net.http.HttpClient;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -44,6 +46,10 @@ public final class DiscordClient implements AutoCloseable {
 
     public void onSlashCommand(String commandName, Consumer<JsonNode> listener) {
         slashCommandRouter.registerSlashHandler(commandName, listener);
+    }
+
+    public void onAutocomplete(String commandName, Consumer<JsonNode> listener) {
+        slashCommandRouter.registerAutocompleteHandler(commandName, listener);
     }
 
     public void onComponentInteraction(String customId, Consumer<JsonNode> listener) {
@@ -87,8 +93,20 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.respondWithMessage(interaction, content);
     }
 
+    public void respondWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
+        slashCommandRouter.respondWithEmbeds(interaction, content, embeds);
+    }
+
     public void respondEphemeral(JsonNode interaction, String content) {
         slashCommandRouter.respondEphemeral(interaction, content);
+    }
+
+    public void respondEphemeralWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
+        slashCommandRouter.respondEphemeralWithEmbeds(interaction, content, embeds);
+    }
+
+    public void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
+        slashCommandRouter.respondWithAutocompleteChoices(interaction, choices);
     }
 
     public void deferMessage(JsonNode interaction) {
@@ -104,7 +122,21 @@ public final class DiscordClient implements AutoCloseable {
     }
 
     public void sendMessage(String channelId, String content) {
-        restClient.sendMessage(channelId, content);
+        restClient.sendMessage(channelId, Map.of("content", content));
+    }
+
+    public void sendMessageWithEmbeds(String channelId, String content, List<DiscordEmbed> embeds) {
+        requireNonBlank(channelId, "channelId");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (content != null && !content.isBlank()) {
+            payload.put("content", content);
+        }
+        if (embeds != null && !embeds.isEmpty()) {
+            payload.put("embeds", embeds.stream().map(DiscordEmbed::toPayload).toList());
+        }
+
+        restClient.sendMessage(channelId, payload);
     }
 
     @Override
