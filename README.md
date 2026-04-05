@@ -32,12 +32,27 @@ DiscordClientConfig config = DiscordClientConfig.builder(token)
         .build();
 
 try (DiscordClient client = DiscordClient.create(config)) {
-    client.onSlashCommand("ping", interaction -> client.respondWithMessage(interaction, "pong"));
+    client.onSlashCommandContext("ping", context -> context.respondWithMessage("pong"));
 
     client.registerGlobalSlashCommand("ping", "Reply with pong");
     client.login();
     Thread.currentThread().join();
 }
+```
+
+Prefer the higher-level interaction API when possible:
+
+```java
+client.onSlashCommandContext("echo", context -> {
+    String text = context.optionString("text");
+    context.respondEphemeral("You said: " + text);
+});
+
+client.onSlashCommandContext("profile-photo", context -> {
+    // Attachment options can be resolved directly from interaction payload metadata.
+    var attachment = context.optionResolvedAttachmentValue("photo");
+    context.respondEphemeral(attachment == null ? "No photo provided" : "Photo received: " + attachment.filename());
+});
 ```
 
 ## Sharding

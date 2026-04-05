@@ -260,6 +260,18 @@ class SlashCommandRouterTest {
     }
 
     @Test
+    void trimsHandlerKeyDuringRegistrationAndDispatch() throws Exception {
+        AtomicInteger invocationCount = new AtomicInteger(0);
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+
+        router.registerSlashHandler(" ping ", ignored -> invocationCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(2, "ping", null, "42", "token-value", null, 1));
+        assertEquals(1, invocationCount.get());
+    }
+
+    @Test
     void respondWithMessageRequiresIdAndToken() throws Exception {
         SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
         });
@@ -269,6 +281,29 @@ class SlashCommandRouterTest {
 
         assertThrows(IllegalArgumentException.class, () -> router.respondWithMessage(missingId, "pong"));
         assertThrows(IllegalArgumentException.class, () -> router.respondWithMessage(missingToken, "pong"));
+    }
+
+    @Test
+    void supportsContextBasedHandlersAndResponses() throws Exception {
+        AtomicReference<String> optionValue = new AtomicReference<>();
+        AtomicReference<Integer> responseType = new AtomicReference<>();
+        AtomicReference<Map<String, Object>> responseData = new AtomicReference<>();
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+            responseType.set(type);
+            responseData.set(data);
+        });
+
+        router.registerSlashContextHandler("echo", context -> {
+            optionValue.set(context.optionString("text"));
+            context.respondEphemeral("ok");
+        });
+
+        router.handleInteraction(interactionPayload(2, "echo", null, "id-1", "token-1", "hello", 1));
+
+        assertEquals("hello", optionValue.get());
+        assertEquals(4, responseType.get());
+        assertEquals(64, responseData.get().get("flags"));
     }
 
     private static JsonNode interactionPayload(

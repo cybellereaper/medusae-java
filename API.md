@@ -30,15 +30,18 @@
 
 ### Interaction responses
 
-- `respondWithMessage(...)`
-- `respondWithEmbeds(...)`
-- `respondEphemeral(...)`
-- `respondWithAutocompleteChoices(...)`
-- `respondWithModal(JsonNode, DiscordModal)`
-- `deferMessage(...)`
-- `deferUpdate(...)`
+- Prefer `on*Context(...)` handlers and respond through `InteractionContext`.
+- `InteractionContext` helpers include:
+  - Response helpers: `respondWithMessage`, `respondWithEmbeds`, `respondEphemeral`, `respondWithModal`, `respondWithAutocompleteChoices`, `deferMessage`, `deferUpdate`
+  - Option helpers: `optionString`, `requiredOptionString`, `optionLong`, `optionInt`, `optionBoolean`, `optionDouble`
+  - Resolved entity helpers: `resolvedAttachment`, `resolvedUser`, `resolvedMember`, `resolvedRole`, `resolvedChannel`
+  - Typed resolved wrappers: `resolvedAttachmentValue`, `resolvedUserValue`, `resolvedMemberValue`, `resolvedRoleValue`, `resolvedChannelValue`
+  - Option-to-resolved helpers: `optionResolvedAttachment`, `optionResolvedUser`, `optionResolvedRole`, `optionResolvedChannel`
+  - Typed option-to-resolved wrappers: `optionResolvedAttachmentValue`, `optionResolvedUserValue`, `optionResolvedRoleValue`, `optionResolvedChannelValue`
+  - Modal helper: `modalValue`
+  - Metadata helpers: `id`, `token`, `interactionType`, `commandType`, `guildId`, `channelId`, `userId`
 
-- `getModalValue(JsonNode, String)` for modal submit field extraction.
+- Legacy raw `JsonNode` interaction helpers are still available but deprecated.
 
 ### Message sending
 
