@@ -80,6 +80,28 @@ public final class DiscordRestClient {
         return request("POST", "/interactions/" + interactionId + "/" + interactionToken + "/callback", payload);
     }
 
+    public JsonNode createGlobalApplicationCommand(String applicationId, SlashCommandDefinition command) {
+        validateCommandContext(applicationId, command);
+        return request("POST", "/applications/" + applicationId + "/commands", command.toRequestPayload());
+    }
+
+    public JsonNode createGuildApplicationCommand(String applicationId, String guildId, SlashCommandDefinition command) {
+        validateCommandContext(applicationId, command);
+        requireNonBlank(guildId, "guildId");
+
+        return request("POST", "/applications/" + applicationId + "/guilds/" + guildId + "/commands", command.toRequestPayload());
+    }
+
+    public JsonNode createInteractionResponse(String interactionId, String interactionToken, int type, Map<String, Object> data) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", type);
+        if (data != null && !data.isEmpty()) {
+            payload.put("data", data);
+        }
+
+        return request("POST", "/interactions/" + interactionId + "/" + interactionToken + "/callback", payload);
+    }
+
     public JsonNode request(String method, String path, Object body) {
         String routeKey = method + " " + path;
         String bucketId = routeToBucket.getOrDefault(routeKey, routeKey);
