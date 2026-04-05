@@ -86,6 +86,22 @@ class SlashCommandRouterTest {
     }
 
     @Test
+    void invokesBothRawAndTypedHandlersWhenBothAreRegistered() throws Exception {
+        AtomicInteger rawCount = new AtomicInteger(0);
+        AtomicInteger typedCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerSlashHandler("echo", ignored -> rawCount.incrementAndGet());
+        router.registerSlashContextHandler("echo", ignored -> typedCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(2, "echo", null, "42", "token", "hello", 1));
+
+        assertEquals(1, rawCount.get());
+        assertEquals(1, typedCount.get());
+    }
+
+    @Test
     void routesAutocompleteInteractionsByCommandName() throws Exception {
         AtomicInteger autocompleteCount = new AtomicInteger(0);
 
@@ -319,6 +335,29 @@ class SlashCommandRouterTest {
         assertNull(parameters.getLong("text"));
         assertNull(parameters.getBoolean("number"));
         assertThrows(IllegalArgumentException.class, () -> parameters.requireString("missing"));
+    }
+
+    @Test
+    void interactionContextResolvesTopLevelUserWhenMemberIsMissing() throws Exception {
+        JsonNode interaction = MAPPER.readTree("""
+                {
+                  "type": 3,
+                  "id": "123",
+                  "token": "abc",
+                  "user": {
+                    "id": "user-2",
+                    "username": "top-level-user"
+                  },
+                  "data": {
+                    "custom_id": "confirm_button"
+                  }
+                }
+                """);
+
+        InteractionContext context = new InteractionContext(interaction);
+
+        assertEquals("user-2", context.userId());
+        assertEquals("top-level-user", context.username());
     }
 
     @Test
