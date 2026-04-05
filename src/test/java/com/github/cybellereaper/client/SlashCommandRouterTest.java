@@ -27,6 +27,49 @@ class SlashCommandRouterTest {
         assertEquals(1, invocationCount.get());
     }
 
+
+    @Test
+    void routesSlashCommandsCaseInsensitively() throws Exception {
+        AtomicInteger invocationCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerSlashHandler("PING", ignored -> invocationCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(2, "ping", null, "42", "token-value", null, 1));
+
+        assertEquals(1, invocationCount.get());
+    }
+
+    @Test
+    void latestSlashHandlerRegistrationWinsWhenDifferingOnlyByCase() throws Exception {
+        AtomicInteger firstHandler = new AtomicInteger(0);
+        AtomicInteger secondHandler = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerSlashHandler("Ping", ignored -> firstHandler.incrementAndGet());
+        router.registerSlashHandler("ping", ignored -> secondHandler.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(2, "PING", null, "42", "token-value", null, 1));
+
+        assertEquals(0, firstHandler.get());
+        assertEquals(1, secondHandler.get());
+    }
+
+    @Test
+    void routesAutocompleteCaseInsensitively() throws Exception {
+        AtomicInteger autocompleteCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerAutocompleteHandler("ECHO", ignored -> autocompleteCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(4, "echo", null, "42", "token-value", "he", null));
+
+        assertEquals(1, autocompleteCount.get());
+    }
+
     @Test
     void routesTypedSlashCommandWithContextAndTypedParameters() throws Exception {
         AtomicReference<String> commandName = new AtomicReference<>();
