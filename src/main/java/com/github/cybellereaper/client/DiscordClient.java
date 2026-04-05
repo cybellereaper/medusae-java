@@ -86,24 +86,48 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.registerSlashHandler(commandName, listener);
     }
 
+    public void onSlashCommandContext(String commandName, InteractionHandler listener) {
+        slashCommandRouter.registerSlashContextHandler(commandName, listener);
+    }
+
     public void onAutocomplete(String commandName, Consumer<JsonNode> listener) {
         slashCommandRouter.registerAutocompleteHandler(commandName, listener);
+    }
+
+    public void onAutocompleteContext(String commandName, InteractionHandler listener) {
+        slashCommandRouter.registerAutocompleteContextHandler(commandName, listener);
     }
 
     public void onUserContextMenu(String commandName, Consumer<JsonNode> listener) {
         slashCommandRouter.registerUserContextMenuHandler(commandName, listener);
     }
 
+    public void onUserContextMenuContext(String commandName, InteractionHandler listener) {
+        slashCommandRouter.registerUserContextMenuContextHandler(commandName, listener);
+    }
+
     public void onMessageContextMenu(String commandName, Consumer<JsonNode> listener) {
         slashCommandRouter.registerMessageContextMenuHandler(commandName, listener);
+    }
+
+    public void onMessageContextMenuContext(String commandName, InteractionHandler listener) {
+        slashCommandRouter.registerMessageContextMenuContextHandler(commandName, listener);
     }
 
     public void onComponentInteraction(String customId, Consumer<JsonNode> listener) {
         slashCommandRouter.registerComponentHandler(customId, listener);
     }
 
+    public void onComponentInteractionContext(String customId, InteractionHandler listener) {
+        slashCommandRouter.registerComponentContextHandler(customId, listener);
+    }
+
     public void onModalSubmit(String customId, Consumer<JsonNode> listener) {
         slashCommandRouter.registerModalHandler(customId, listener);
+    }
+
+    public void onModalSubmitContext(String customId, InteractionHandler listener) {
+        slashCommandRouter.registerModalContextHandler(customId, listener);
     }
 
     public DiscordApi api() {

@@ -40,6 +40,15 @@ try (DiscordClient client = DiscordClient.create(config)) {
 }
 ```
 
+Prefer the higher-level interaction API when possible:
+
+```java
+client.onSlashCommandContext("echo", context -> {
+    String text = context.optionString("text");
+    context.respondEphemeral("You said: " + text);
+});
+```
+
 ## Sharding
 
 Configure shard routing when running multiple gateway workers:

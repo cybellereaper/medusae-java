@@ -37,6 +37,7 @@
 - `respondWithModal(JsonNode, DiscordModal)`
 - `deferMessage(...)`
 - `deferUpdate(...)`
+- `on*Context(...)` variants for typed handlers with `InteractionContext` (response helpers + option/modal access).
 
 - `getModalValue(JsonNode, String)` for modal submit field extraction.
 
