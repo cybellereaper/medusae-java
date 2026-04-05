@@ -2,29 +2,22 @@ package com.github.cybellereaper.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 final class SlashCommandRouter {
-    private static final int PING_INTERACTION_TYPE = 1;
-    private static final int APPLICATION_COMMAND_INTERACTION_TYPE = 2;
-
-    private static final int CHAT_INPUT_COMMAND_TYPE = 1;
-    private static final int USER_CONTEXT_COMMAND_TYPE = 2;
-    private static final int MESSAGE_CONTEXT_COMMAND_TYPE = 3;
-    private static final int MESSAGE_COMPONENT_INTERACTION_TYPE = 3;
-    private static final int APPLICATION_COMMAND_AUTOCOMPLETE_INTERACTION_TYPE = 4;
-    private static final int MODAL_SUBMIT_INTERACTION_TYPE = 5;
-
-    private static final int PONG_RESPONSE_TYPE = 1;
-    private static final int CHANNEL_MESSAGE_RESPONSE_TYPE = 4;
-    private static final int DEFERRED_CHANNEL_MESSAGE_RESPONSE_TYPE = 5;
-    private static final int DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE = 6;
-    private static final int AUTOCOMPLETE_RESPONSE_TYPE = 8;
-    private static final int MODAL_RESPONSE_TYPE = 9;
+    private static final String DATA_FIELD = "data";
+    private static final String ID_FIELD = "id";
+    private static final String TOKEN_FIELD = "token";
+    private static final String OPTIONS_FIELD = "options";
+    private static final String COMPONENTS_FIELD = "components";
+    private static final String VALUE_FIELD = "value";
 
     private final Map<String, Consumer<JsonNode>> slashHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> userContextMenuHandlers = new ConcurrentHashMap<>();
@@ -67,35 +60,16 @@ final class SlashCommandRouter {
             return;
         }
 
-        int interactionType = interaction.path("type").asInt();
-        if (interactionType == PING_INTERACTION_TYPE) {
-            respond(interaction, PONG_RESPONSE_TYPE, null);
-            return;
-        }
-
-        if (interactionType == APPLICATION_COMMAND_INTERACTION_TYPE) {
-            int commandType = interaction.path("data").path("type").asInt(CHAT_INPUT_COMMAND_TYPE);
-            if (commandType == USER_CONTEXT_COMMAND_TYPE) {
-                dispatchByName(interaction, userContextMenuHandlers, "name");
-            } else if (commandType == MESSAGE_CONTEXT_COMMAND_TYPE) {
-                dispatchByName(interaction, messageContextMenuHandlers, "name");
-            } else {
-                dispatchByName(interaction, slashHandlers, "name");
+        InteractionType interactionType = InteractionType.fromCode(interaction.path("type").asInt());
+        switch (interactionType) {
+            case PING -> respond(interaction, ResponseType.PONG, null);
+            case APPLICATION_COMMAND -> handleApplicationCommand(interaction);
+            case APPLICATION_COMMAND_AUTOCOMPLETE -> dispatchByDataField(interaction, autocompleteHandlers, DataField.NAME);
+            case MESSAGE_COMPONENT -> dispatchByDataField(interaction, componentHandlers, DataField.CUSTOM_ID);
+            case MODAL_SUBMIT -> dispatchByDataField(interaction, modalHandlers, DataField.CUSTOM_ID);
+            case UNKNOWN -> {
+                // Unknown interaction types are intentionally ignored.
             }
-            return;
-        }
-
-        if (interactionType == APPLICATION_COMMAND_AUTOCOMPLETE_INTERACTION_TYPE) {
-            dispatchByName(interaction, autocompleteHandlers, "name");
-            return;
-        }
-
-        if (interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE || interactionType == MODAL_SUBMIT_INTERACTION_TYPE) {
-            dispatchByName(
-                    interaction,
-                    interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE ? componentHandlers : modalHandlers,
-                    "custom_id"
-            );
         }
     }
 
@@ -105,7 +79,7 @@ final class SlashCommandRouter {
 
     void respondWithMessage(JsonNode interaction, DiscordMessage message) {
         Objects.requireNonNull(message, "message");
-        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, message.toPayload());
+        respond(interaction, ResponseType.CHANNEL_MESSAGE, message.toPayload());
     }
 
     void respondWithEmbeds(JsonNode interaction, String content, List<DiscordEmbed> embeds) {
@@ -122,38 +96,37 @@ final class SlashCommandRouter {
 
     void respondWithModal(JsonNode interaction, DiscordModal modal) {
         Objects.requireNonNull(modal, "modal");
-        respond(interaction, MODAL_RESPONSE_TYPE, modal.toPayload());
+        respond(interaction, ResponseType.MODAL, modal.toPayload());
     }
 
     void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
         Objects.requireNonNull(choices, "choices");
 
-        respond(interaction, AUTOCOMPLETE_RESPONSE_TYPE, Map.of(
+        respond(interaction, ResponseType.AUTOCOMPLETE, Map.of(
                 "choices", choices.stream().map(AutocompleteChoice::toPayload).toList()
         ));
     }
 
     void deferMessage(JsonNode interaction) {
-        respond(interaction, DEFERRED_CHANNEL_MESSAGE_RESPONSE_TYPE, null);
+        respond(interaction, ResponseType.DEFERRED_CHANNEL_MESSAGE, null);
     }
 
     void deferUpdate(JsonNode interaction) {
-        respond(interaction, DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE, null);
+        respond(interaction, ResponseType.DEFERRED_MESSAGE_UPDATE, null);
     }
 
     String getOptionString(JsonNode interaction, String optionName) {
         Objects.requireNonNull(interaction, "interaction");
         Objects.requireNonNull(optionName, "optionName");
 
-        JsonNode options = interaction.path("data").path("options");
+        JsonNode options = interaction.path(DATA_FIELD).path(OPTIONS_FIELD);
         if (!options.isArray()) {
             return null;
         }
 
         for (JsonNode option : options) {
-            if (optionName.equals(option.path("name").asText())) {
-                JsonNode value = option.path("value");
-                return value.isMissingNode() || value.isNull() ? null : value.asText();
+            if (optionName.equals(option.path(DataField.NAME.value()).asText())) {
+                return valueAsTextOrNull(option.path(VALUE_FIELD));
             }
         }
 
@@ -164,21 +137,20 @@ final class SlashCommandRouter {
         Objects.requireNonNull(interaction, "interaction");
         Objects.requireNonNull(customId, "customId");
 
-        JsonNode rows = interaction.path("data").path("components");
+        JsonNode rows = interaction.path(DATA_FIELD).path(COMPONENTS_FIELD);
         if (!rows.isArray()) {
             return null;
         }
 
         for (JsonNode row : rows) {
-            JsonNode components = row.path("components");
+            JsonNode components = row.path(COMPONENTS_FIELD);
             if (!components.isArray()) {
                 continue;
             }
 
             for (JsonNode component : components) {
-                if (customId.equals(component.path("custom_id").asText())) {
-                    JsonNode value = component.path("value");
-                    return value.isMissingNode() || value.isNull() ? null : value.asText();
+                if (customId.equals(component.path(DataField.CUSTOM_ID.value()).asText())) {
+                    return valueAsTextOrNull(component.path(VALUE_FIELD));
                 }
             }
         }
@@ -186,25 +158,43 @@ final class SlashCommandRouter {
         return null;
     }
 
-    private void dispatchByName(JsonNode interaction, Map<String, Consumer<JsonNode>> handlers, String keyFieldName) {
-        String handlerKey = interaction.path("data").path(keyFieldName).asText("");
+    private void handleApplicationCommand(JsonNode interaction) {
+        CommandType commandType = CommandType.fromCode(
+                interaction.path(DATA_FIELD).path("type").asInt(CommandType.CHAT_INPUT.code())
+        );
+
+        Map<String, Consumer<JsonNode>> handlers = switch (commandType) {
+            case USER_CONTEXT -> userContextMenuHandlers;
+            case MESSAGE_CONTEXT -> messageContextMenuHandlers;
+            case CHAT_INPUT, UNKNOWN -> slashHandlers;
+        };
+
+        dispatchByDataField(interaction, handlers, DataField.NAME);
+    }
+
+    private void dispatchByDataField(JsonNode interaction, Map<String, Consumer<JsonNode>> handlers, DataField dataField) {
+        String handlerKey = interaction.path(DATA_FIELD).path(dataField.value()).asText("");
         Consumer<JsonNode> handler = handlers.get(handlerKey);
         if (handler != null) {
             handler.accept(interaction);
         }
     }
 
-    private void respond(JsonNode interaction, int responseType, Map<String, Object> data) {
+    private void respond(JsonNode interaction, ResponseType responseType, Map<String, Object> data) {
         Objects.requireNonNull(interaction, "interaction");
 
-        String interactionId = interaction.path("id").asText();
-        String interactionToken = interaction.path("token").asText();
+        String interactionId = interaction.path(ID_FIELD).asText();
+        String interactionToken = interaction.path(TOKEN_FIELD).asText();
 
         if (interactionId.isBlank() || interactionToken.isBlank()) {
             throw new IllegalArgumentException("interaction must include id and token");
         }
 
-        responder.respond(interactionId, interactionToken, responseType, data);
+        responder.respond(interactionId, interactionToken, responseType.code(), data);
+    }
+
+    private static String valueAsTextOrNull(JsonNode valueNode) {
+        return valueNode.isMissingNode() || valueNode.isNull() ? null : valueNode.asText();
     }
 
     private static void registerUniqueHandler(
@@ -227,6 +217,92 @@ final class SlashCommandRouter {
         if (key.isBlank()) {
             throw new IllegalArgumentException(keyType + " key must not be blank");
         }
+    }
+
+    private enum InteractionType {
+        PING(1),
+        APPLICATION_COMMAND(2),
+        MESSAGE_COMPONENT(3),
+        APPLICATION_COMMAND_AUTOCOMPLETE(4),
+        MODAL_SUBMIT(5),
+        UNKNOWN(-1);
+
+        private static final Map<Integer, InteractionType> BY_CODE = byCode(values(), InteractionType::code);
+
+        private final int code;
+
+        InteractionType(int code) {
+            this.code = code;
+        }
+
+        int code() {
+            return code;
+        }
+
+        private static InteractionType fromCode(int code) {
+            return BY_CODE.getOrDefault(code, UNKNOWN);
+        }
+    }
+
+    private enum CommandType {
+        CHAT_INPUT(1),
+        USER_CONTEXT(2),
+        MESSAGE_CONTEXT(3),
+        UNKNOWN(-1);
+
+        private static final Map<Integer, CommandType> BY_CODE = byCode(values(), CommandType::code);
+
+        private final int code;
+
+        CommandType(int code) {
+            this.code = code;
+        }
+
+        int code() {
+            return code;
+        }
+
+        private static CommandType fromCode(int code) {
+            return BY_CODE.getOrDefault(code, UNKNOWN);
+        }
+    }
+
+    private enum ResponseType {
+        PONG(1),
+        CHANNEL_MESSAGE(4),
+        DEFERRED_CHANNEL_MESSAGE(5),
+        DEFERRED_MESSAGE_UPDATE(6),
+        AUTOCOMPLETE(8),
+        MODAL(9);
+
+        private final int code;
+
+        ResponseType(int code) {
+            this.code = code;
+        }
+
+        int code() {
+            return code;
+        }
+    }
+
+    private enum DataField {
+        NAME("name"),
+        CUSTOM_ID("custom_id");
+
+        private final String value;
+
+        DataField(String value) {
+            this.value = value;
+        }
+
+        String value() {
+            return value;
+        }
+    }
+
+    private static <T> Map<Integer, T> byCode(T[] values, Function<T, Integer> keyMapper) {
+        return Arrays.stream(values).collect(Collectors.toUnmodifiableMap(keyMapper, Function.identity()));
     }
 
     @FunctionalInterface

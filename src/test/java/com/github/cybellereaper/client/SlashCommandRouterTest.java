@@ -57,6 +57,20 @@ class SlashCommandRouterTest {
         assertEquals(1, modalCount.get());
     }
 
+
+    @Test
+    void routesUnknownApplicationCommandTypeToSlashHandlers() throws Exception {
+        AtomicInteger slashCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerSlashHandler("fallback", ignored -> slashCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(2, "fallback", null, "77", "token-value", null, 99));
+
+        assertEquals(1, slashCount.get());
+    }
+
     @Test
     void routesUserAndMessageContextMenusByCommandName() throws Exception {
         AtomicInteger userCount = new AtomicInteger(0);
@@ -85,6 +99,18 @@ class SlashCommandRouterTest {
         assertEquals(1, responseType.get());
     }
 
+
+    @Test
+    void ignoresNullAndUnknownInteractionTypes() {
+        AtomicInteger invocationCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> invocationCount.incrementAndGet());
+
+        router.handleInteraction(null);
+        assertDoesNotThrow(() -> router.handleInteraction(MAPPER.createObjectNode().put("type", 999)));
+        assertEquals(0, invocationCount.get());
+    }
+
     @Test
     void respondEphemeralUsesCorrectFlags() throws Exception {
         AtomicReference<Map<String, Object>> responseData = new AtomicReference<>();
@@ -111,6 +137,20 @@ class SlashCommandRouterTest {
 
         assertEquals("hello", responseData.get().get("content"));
         assertTrue(responseData.get().containsKey("embeds"));
+    }
+
+
+    @Test
+    void deferMethodsUseExpectedResponseTypes() throws Exception {
+        AtomicReference<Integer> responseType = new AtomicReference<>();
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> responseType.set(type));
+        JsonNode interaction = interactionPayload(2, "ping", null, "123", "abc", null, 1);
+
+        router.deferMessage(interaction);
+        assertEquals(5, responseType.get());
+
+        router.deferUpdate(interaction);
+        assertEquals(6, responseType.get());
     }
 
     @Test
@@ -206,6 +246,16 @@ class SlashCommandRouterTest {
         });
 
         assertThrows(IllegalArgumentException.class, () -> router.registerSlashHandler("ping", ignored -> {
+        }));
+    }
+
+
+    @Test
+    void rejectsBlankHandlerKey() {
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> router.registerSlashHandler(" ", ignored -> {
         }));
     }
 
