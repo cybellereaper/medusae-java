@@ -3,12 +3,14 @@ package com.github.cybellereaper.http;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.cybellereaper.client.DiscordClientConfig;
+import com.github.cybellereaper.client.SlashCommandDefinition;
 import com.github.cybellereaper.gateway.GatewayBotInfo;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -53,19 +55,18 @@ public final class DiscordRestClient {
         return request("POST", "/channels/" + channelId + "/messages", Map.of("content", content));
     }
 
-    public JsonNode createGlobalApplicationCommand(String applicationId, String name, String description) {
-        return request("POST", "/applications/" + applicationId + "/commands", Map.of(
-                "name", name,
-                "description", description,
-                "type", 1
-        ));
+    public JsonNode createGlobalApplicationCommand(String applicationId, SlashCommandDefinition command) {
+        return request("POST", "/applications/" + applicationId + "/commands", command.toRequestPayload());
     }
 
-    public JsonNode createInteractionResponse(String interactionId, String interactionToken, String content) {
-        return request("POST", "/interactions/" + interactionId + "/" + interactionToken + "/callback", Map.of(
-                "type", 4,
-                "data", Map.of("content", content)
-        ));
+    public JsonNode createInteractionResponse(String interactionId, String interactionToken, int type, Map<String, Object> data) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("type", type);
+        if (data != null && !data.isEmpty()) {
+            payload.put("data", data);
+        }
+
+        return request("POST", "/interactions/" + interactionId + "/" + interactionToken + "/callback", payload);
     }
 
     public JsonNode request(String method, String path, Object body) {

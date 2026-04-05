@@ -8,42 +8,107 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 final class SlashCommandRouter {
+    private static final int PING_INTERACTION_TYPE = 1;
     private static final int APPLICATION_COMMAND_INTERACTION_TYPE = 2;
+    private static final int MESSAGE_COMPONENT_INTERACTION_TYPE = 3;
+    private static final int MODAL_SUBMIT_INTERACTION_TYPE = 5;
 
-    private final Map<String, Consumer<JsonNode>> handlers = new ConcurrentHashMap<>();
+    private static final int CHANNEL_MESSAGE_RESPONSE_TYPE = 4;
+    private static final int DEFERRED_CHANNEL_MESSAGE_RESPONSE_TYPE = 5;
+    private static final int DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE = 6;
+    private static final int PONG_RESPONSE_TYPE = 1;
+
+    private static final int EPHEMERAL_FLAG = 1 << 6;
+
+    private final Map<String, Consumer<JsonNode>> slashHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<JsonNode>> componentHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<JsonNode>> modalHandlers = new ConcurrentHashMap<>();
     private final InteractionResponder responder;
 
     SlashCommandRouter(InteractionResponder responder) {
         this.responder = Objects.requireNonNull(responder, "responder");
     }
 
-    void registerHandler(String commandName, Consumer<JsonNode> handler) {
-        validateCommandName(commandName);
-        Objects.requireNonNull(handler, "handler");
+    void registerSlashHandler(String commandName, Consumer<JsonNode> handler) {
+        registerUniqueHandler(slashHandlers, commandName, "slash command", handler);
+    }
 
-        Consumer<JsonNode> previous = handlers.putIfAbsent(commandName, handler);
-        if (previous != null) {
-            throw new IllegalArgumentException("Slash command already registered: " + commandName);
-        }
+    void registerComponentHandler(String customId, Consumer<JsonNode> handler) {
+        registerUniqueHandler(componentHandlers, customId, "component", handler);
+    }
+
+    void registerModalHandler(String customId, Consumer<JsonNode> handler) {
+        registerUniqueHandler(modalHandlers, customId, "modal", handler);
     }
 
     void handleInteraction(JsonNode interaction) {
-        if (interaction == null || interaction.path("type").asInt() != APPLICATION_COMMAND_INTERACTION_TYPE) {
+        if (interaction == null) {
             return;
         }
 
-        JsonNode data = interaction.path("data");
-        String commandName = data.path("name").asText("");
-
-        Consumer<JsonNode> handler = handlers.get(commandName);
-        if (handler == null) {
+        int interactionType = interaction.path("type").asInt();
+        if (interactionType == PING_INTERACTION_TYPE) {
+            respond(interaction, PONG_RESPONSE_TYPE, null);
             return;
         }
 
-        handler.accept(interaction);
+        if (interactionType == APPLICATION_COMMAND_INTERACTION_TYPE) {
+            dispatchByName(interaction, slashHandlers, "name");
+            return;
+        }
+
+        if (interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE || interactionType == MODAL_SUBMIT_INTERACTION_TYPE) {
+            dispatchByName(interaction, interactionType == MESSAGE_COMPONENT_INTERACTION_TYPE ? componentHandlers : modalHandlers, "custom_id");
+        }
     }
 
     void respondWithMessage(JsonNode interaction, String content) {
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, Map.of("content", content));
+    }
+
+    void respondEphemeral(JsonNode interaction, String content) {
+        respond(interaction, CHANNEL_MESSAGE_RESPONSE_TYPE, Map.of(
+                "content", content,
+                "flags", EPHEMERAL_FLAG
+        ));
+    }
+
+    void deferMessage(JsonNode interaction) {
+        respond(interaction, DEFERRED_CHANNEL_MESSAGE_RESPONSE_TYPE, null);
+    }
+
+    void deferUpdate(JsonNode interaction) {
+        respond(interaction, DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE, null);
+    }
+
+    String getOptionString(JsonNode interaction, String optionName) {
+        Objects.requireNonNull(interaction, "interaction");
+        Objects.requireNonNull(optionName, "optionName");
+
+        JsonNode options = interaction.path("data").path("options");
+        if (!options.isArray()) {
+            return null;
+        }
+
+        for (JsonNode option : options) {
+            if (optionName.equals(option.path("name").asText())) {
+                JsonNode value = option.path("value");
+                return value.isMissingNode() || value.isNull() ? null : value.asText();
+            }
+        }
+
+        return null;
+    }
+
+    private void dispatchByName(JsonNode interaction, Map<String, Consumer<JsonNode>> handlers, String keyFieldName) {
+        String handlerKey = interaction.path("data").path(keyFieldName).asText("");
+        Consumer<JsonNode> handler = handlers.get(handlerKey);
+        if (handler != null) {
+            handler.accept(interaction);
+        }
+    }
+
+    private void respond(JsonNode interaction, int responseType, Map<String, Object> data) {
         Objects.requireNonNull(interaction, "interaction");
 
         String interactionId = interaction.path("id").asText();
@@ -53,18 +118,33 @@ final class SlashCommandRouter {
             throw new IllegalArgumentException("interaction must include id and token");
         }
 
-        responder.respondWithMessage(interactionId, interactionToken, content);
+        responder.respond(interactionId, interactionToken, responseType, data);
     }
 
-    private static void validateCommandName(String commandName) {
-        Objects.requireNonNull(commandName, "commandName");
-        if (commandName.isBlank()) {
-            throw new IllegalArgumentException("commandName must not be blank");
+    private static void registerUniqueHandler(
+            Map<String, Consumer<JsonNode>> handlers,
+            String key,
+            String handlerType,
+            Consumer<JsonNode> handler
+    ) {
+        validateKey(key, handlerType);
+        Objects.requireNonNull(handler, "handler");
+
+        Consumer<JsonNode> previous = handlers.putIfAbsent(key, handler);
+        if (previous != null) {
+            throw new IllegalArgumentException("Interaction handler already registered for " + handlerType + ": " + key);
+        }
+    }
+
+    private static void validateKey(String key, String keyType) {
+        Objects.requireNonNull(key, keyType + " key");
+        if (key.isBlank()) {
+            throw new IllegalArgumentException(keyType + " key must not be blank");
         }
     }
 
     @FunctionalInterface
     interface InteractionResponder {
-        void respondWithMessage(String interactionId, String interactionToken, String content);
+        void respond(String interactionId, String interactionToken, int type, Map<String, Object> data);
     }
 }
