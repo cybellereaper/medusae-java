@@ -41,8 +41,31 @@ public final class DiscordRestClient {
         );
     }
 
+    public JsonNode getCurrentApplication() {
+        return request("GET", "/oauth2/applications/@me", null);
+    }
+
+    public String getCurrentApplicationId() {
+        return getCurrentApplication().path("id").asText();
+    }
+
     public JsonNode sendMessage(String channelId, String content) {
         return request("POST", "/channels/" + channelId + "/messages", Map.of("content", content));
+    }
+
+    public JsonNode createGlobalApplicationCommand(String applicationId, String name, String description) {
+        return request("POST", "/applications/" + applicationId + "/commands", Map.of(
+                "name", name,
+                "description", description,
+                "type", 1
+        ));
+    }
+
+    public JsonNode createInteractionResponse(String interactionId, String interactionToken, String content) {
+        return request("POST", "/interactions/" + interactionId + "/" + interactionToken + "/callback", Map.of(
+                "type", 4,
+                "data", Map.of("content", content)
+        ));
     }
 
     public JsonNode request(String method, String path, Object body) {
