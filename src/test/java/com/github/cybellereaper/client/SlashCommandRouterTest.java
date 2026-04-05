@@ -133,6 +133,62 @@ class SlashCommandRouterTest {
     }
 
     @Test
+    void respondWithModalUsesCorrectResponseType() throws Exception {
+        AtomicReference<Integer> responseType = new AtomicReference<>();
+        AtomicReference<Map<String, Object>> responseData = new AtomicReference<>();
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+            responseType.set(type);
+            responseData.set(data);
+        });
+
+        DiscordModal modal = DiscordModal.of(
+                "feedback_modal",
+                "Feedback",
+                List.of(DiscordActionRow.of(List.of(
+                        DiscordTextInput.paragraph("feedback", "Feedback")
+                )))
+        );
+
+        router.respondWithModal(interactionPayload(2, "ping", null, "123", "abc", null, 1), modal);
+
+        assertEquals(9, responseType.get());
+        assertEquals("feedback_modal", responseData.get().get("custom_id"));
+    }
+
+    @Test
+    void returnsModalInputValueWhenPresent() throws Exception {
+        JsonNode interaction = MAPPER.readTree("""
+                {
+                  "type": 5,
+                  "id": "123",
+                  "token": "abc",
+                  "data": {
+                    "custom_id": "feedback_modal",
+                    "components": [
+                      {
+                        "type": 1,
+                        "components": [
+                          {
+                            "type": 4,
+                            "custom_id": "feedback",
+                            "value": "Great bot"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+                """);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+
+        assertEquals("Great bot", router.getModalValue(interaction, "feedback"));
+        assertNull(router.getModalValue(interaction, "missing"));
+    }
+
+    @Test
     void returnsStringOptionValueWhenPresent() throws Exception {
         JsonNode interaction = interactionPayload(2, "echo", null, "123", "abc", "hello", 1);
         SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {

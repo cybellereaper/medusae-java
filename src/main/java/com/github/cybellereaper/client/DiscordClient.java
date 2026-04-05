@@ -15,6 +15,7 @@ public final class DiscordClient implements AutoCloseable {
     private final DiscordRestClient restClient;
     private final DiscordGatewayClient gatewayClient;
     private final SlashCommandRouter slashCommandRouter;
+    private final DiscordApi api;
 
     private volatile String applicationId;
 
@@ -22,6 +23,7 @@ public final class DiscordClient implements AutoCloseable {
         this.restClient = restClient;
         this.gatewayClient = gatewayClient;
         this.slashCommandRouter = new SlashCommandRouter(restClient::createInteractionResponse);
+        this.api = new DiscordApi(restClient);
         this.gatewayClient.on("INTERACTION_CREATE", slashCommandRouter::handleInteraction);
     }
 
@@ -86,6 +88,10 @@ public final class DiscordClient implements AutoCloseable {
 
     public void onModalSubmit(String customId, Consumer<JsonNode> listener) {
         slashCommandRouter.registerModalHandler(customId, listener);
+    }
+
+    public DiscordApi api() {
+        return api;
     }
 
     public JsonNode registerGlobalSlashCommand(String commandName, String description) {
@@ -153,6 +159,10 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.respondEphemeralWithEmbeds(interaction, content, embeds);
     }
 
+    public void respondWithModal(JsonNode interaction, DiscordModal modal) {
+        slashCommandRouter.respondWithModal(interaction, modal);
+    }
+
     public void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
         slashCommandRouter.respondWithAutocompleteChoices(interaction, choices);
     }
@@ -167,6 +177,10 @@ public final class DiscordClient implements AutoCloseable {
 
     public String getStringOption(JsonNode interaction, String optionName) {
         return slashCommandRouter.getOptionString(interaction, optionName);
+    }
+
+    public String getModalValue(JsonNode interaction, String customId) {
+        return slashCommandRouter.getModalValue(interaction, customId);
     }
 
     public void sendMessage(String channelId, String content) {

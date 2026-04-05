@@ -125,6 +125,29 @@ class DiscordGatewayClientTest {
         assertEquals("neo", messageEventRef.get().author().username());
     }
 
+    @Test
+    void identifyPayloadIncludesShardWhenConfigured() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        DiscordClientConfig config = DiscordClientConfig.builder("token")
+                .intents(513)
+                .shard(1, 4)
+                .build();
+        DiscordGatewayClient client = new DiscordGatewayClient(
+                HttpClient.newHttpClient(),
+                mapper,
+                config,
+                new DiscordRestClient(HttpClient.newHttpClient(), mapper, config)
+        );
+
+        CapturingWebSocket socket = new CapturingWebSocket();
+        client.onText(socket, "{\"op\":10,\"d\":{\"heartbeat_interval\":45000}}", true);
+
+        JsonNode sentPayload = mapper.readTree(socket.lastSentText.get());
+        assertEquals(2, sentPayload.path("op").asInt());
+        assertEquals(1, sentPayload.path("d").path("shard").get(0).asInt());
+        assertEquals(4, sentPayload.path("d").path("shard").get(1).asInt());
+    }
+
     private static DiscordGatewayClient gatewayClient(ObjectMapper mapper) {
         HttpClient httpClient = HttpClient.newHttpClient();
         DiscordClientConfig config = DiscordClientConfig.builder("token")
@@ -152,7 +175,7 @@ class DiscordGatewayClientTest {
         }
     }
 
-    private static final class StubWebSocket implements WebSocket {
+    private static class StubWebSocket implements WebSocket {
         @Override
         public CompletableFuture<WebSocket> sendText(CharSequence data, boolean last) {
             return CompletableFuture.completedFuture(this);
@@ -199,6 +222,16 @@ class DiscordGatewayClientTest {
 
         @Override
         public void abort() {
+        }
+    }
+
+    private static final class CapturingWebSocket extends StubWebSocket {
+        private final AtomicReference<String> lastSentText = new AtomicReference<>();
+
+        @Override
+        public CompletableFuture<WebSocket> sendText(CharSequence data, boolean last) {
+            lastSentText.set(data.toString());
+            return CompletableFuture.completedFuture(this);
         }
     }
 }

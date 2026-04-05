@@ -9,7 +9,9 @@ public record DiscordClientConfig(
         int intents,
         String apiBaseUrl,
         int apiVersion,
-        Duration requestTimeout
+        Duration requestTimeout,
+        int shardId,
+        int shardCount
 ) {
     public DiscordClientConfig {
         Objects.requireNonNull(botToken, "botToken");
@@ -23,6 +25,13 @@ public record DiscordClientConfig(
 
         apiVersion = apiVersion <= 0 ? 10 : apiVersion;
         requestTimeout = requestTimeout == null ? Duration.ofSeconds(30) : requestTimeout;
+
+        if (shardCount < 1) {
+            throw new IllegalArgumentException("shardCount must be >= 1");
+        }
+        if (shardId < 0 || shardId >= shardCount) {
+            throw new IllegalArgumentException("shardId must be between 0 (inclusive) and shardCount (exclusive)");
+        }
     }
 
     public static Builder builder(String botToken) {
@@ -40,6 +49,8 @@ public record DiscordClientConfig(
         private String apiBaseUrl = "https://discord.com/api";
         private int apiVersion = 10;
         private Duration requestTimeout = Duration.ofSeconds(30);
+        private int shardId = 0;
+        private int shardCount = 1;
 
         private Builder(String botToken) {
             this.botToken = botToken;
@@ -65,8 +76,14 @@ public record DiscordClientConfig(
             return this;
         }
 
+        public Builder shard(int shardId, int shardCount) {
+            this.shardId = shardId;
+            this.shardCount = shardCount;
+            return this;
+        }
+
         public DiscordClientConfig build() {
-            return new DiscordClientConfig(botToken, intents, apiBaseUrl, apiVersion, requestTimeout);
+            return new DiscordClientConfig(botToken, intents, apiBaseUrl, apiVersion, requestTimeout, shardId, shardCount);
         }
     }
 }

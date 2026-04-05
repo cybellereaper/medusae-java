@@ -267,6 +267,12 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
                 .put("intents", config.intents())
                 .set("properties", properties);
 
+        if (config.shardCount() > 1) {
+            data.putArray("shard")
+                    .add(config.shardId())
+                    .add(config.shardCount());
+        }
+
         send(socket, 2, data);
     }
 
