@@ -29,8 +29,11 @@
 - `respondWithEmbeds(...)`
 - `respondEphemeral(...)`
 - `respondWithAutocompleteChoices(...)`
+- `respondWithModal(JsonNode, DiscordModal)`
 - `deferMessage(...)`
 - `deferUpdate(...)`
+
+- `getModalValue(JsonNode, String)` for modal submit field extraction.
 
 ### Message sending
 

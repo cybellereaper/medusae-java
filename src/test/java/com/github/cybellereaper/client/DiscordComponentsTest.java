@@ -44,4 +44,30 @@ class DiscordComponentsTest {
         assertThrows(IllegalArgumentException.class,
                 () -> DiscordStringSelectMenu.of("theme", List.of()));
     }
+
+    @Test
+    void modalPayloadIncludesTextInputs() {
+        DiscordModal modal = DiscordModal.of(
+                "feedback_modal",
+                "Feedback",
+                List.of(DiscordActionRow.of(List.of(
+                        DiscordTextInput.shortInput("summary", "Summary")
+                                .withLengthRange(1, 100)
+                                .withPlaceholder("Share quick feedback")
+                )))
+        );
+
+        Map<String, Object> payload = modal.toPayload();
+
+        assertEquals("feedback_modal", payload.get("custom_id"));
+        assertTrue(payload.containsKey("components"));
+    }
+
+    @Test
+    void modalValidationRejectsNonTextInputComponents() {
+        assertThrows(IllegalArgumentException.class,
+                () -> DiscordModal.of("id", "Title", List.of(
+                        DiscordActionRow.of(List.of(DiscordButton.primary("a", "b")))
+                )));
+    }
 }

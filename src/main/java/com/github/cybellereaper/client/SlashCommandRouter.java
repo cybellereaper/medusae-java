@@ -24,6 +24,7 @@ final class SlashCommandRouter {
     private static final int DEFERRED_CHANNEL_MESSAGE_RESPONSE_TYPE = 5;
     private static final int DEFERRED_MESSAGE_UPDATE_RESPONSE_TYPE = 6;
     private static final int AUTOCOMPLETE_RESPONSE_TYPE = 8;
+    private static final int MODAL_RESPONSE_TYPE = 9;
 
     private final Map<String, Consumer<JsonNode>> slashHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<JsonNode>> userContextMenuHandlers = new ConcurrentHashMap<>();
@@ -119,6 +120,11 @@ final class SlashCommandRouter {
         respondWithMessage(interaction, DiscordMessage.ofEmbeds(content, embeds).asEphemeral());
     }
 
+    void respondWithModal(JsonNode interaction, DiscordModal modal) {
+        Objects.requireNonNull(modal, "modal");
+        respond(interaction, MODAL_RESPONSE_TYPE, modal.toPayload());
+    }
+
     void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
         Objects.requireNonNull(choices, "choices");
 
@@ -148,6 +154,32 @@ final class SlashCommandRouter {
             if (optionName.equals(option.path("name").asText())) {
                 JsonNode value = option.path("value");
                 return value.isMissingNode() || value.isNull() ? null : value.asText();
+            }
+        }
+
+        return null;
+    }
+
+    String getModalValue(JsonNode interaction, String customId) {
+        Objects.requireNonNull(interaction, "interaction");
+        Objects.requireNonNull(customId, "customId");
+
+        JsonNode rows = interaction.path("data").path("components");
+        if (!rows.isArray()) {
+            return null;
+        }
+
+        for (JsonNode row : rows) {
+            JsonNode components = row.path("components");
+            if (!components.isArray()) {
+                continue;
+            }
+
+            for (JsonNode component : components) {
+                if (customId.equals(component.path("custom_id").asText())) {
+                    JsonNode value = component.path("value");
+                    return value.isMissingNode() || value.isNull() ? null : value.asText();
+                }
             }
         }
 

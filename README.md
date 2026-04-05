@@ -5,7 +5,7 @@ Jellycord is a lightweight Java client for building Discord bots using both the 
 ## Features
 
 - Gateway connection and event subscription
-- Slash commands, context menus, autocomplete, and component interactions
+- Slash commands, context menus, autocomplete, component interactions, and modals
 - Message builders for embeds and components
 - REST helpers for common Discord resources through `DiscordApi`
 
@@ -33,6 +33,31 @@ try (DiscordClient client = DiscordClient.create(config)) {
     client.login();
     Thread.currentThread().join();
 }
+```
+
+
+## Modal Support
+
+You can open a modal from any interaction and read submitted values on modal submit events:
+
+```java
+client.onSlashCommand("feedback", interaction -> {
+    DiscordModal modal = DiscordModal.of(
+            "feedback_modal",
+            "Feedback",
+            List.of(DiscordActionRow.of(List.of(
+                    DiscordTextInput.paragraph("feedback_text", "What can we improve?")
+                            .withLengthRange(10, 1000)
+            )))
+    );
+
+    client.respondWithModal(interaction, modal);
+});
+
+client.onModalSubmit("feedback_modal", interaction -> {
+    String feedback = client.getModalValue(interaction, "feedback_text");
+    client.respondEphemeral(interaction, "Thanks for your feedback: " + feedback);
+});
 ```
 
 ## REST API Helper

@@ -90,10 +90,10 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.registerModalHandler(customId, listener);
     }
 
-
     public DiscordApi api() {
         return api;
     }
+
     public JsonNode registerGlobalSlashCommand(String commandName, String description) {
         return registerGlobalSlashCommand(SlashCommandDefinition.simple(commandName, description));
     }
@@ -159,6 +159,10 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.respondEphemeralWithEmbeds(interaction, content, embeds);
     }
 
+    public void respondWithModal(JsonNode interaction, DiscordModal modal) {
+        slashCommandRouter.respondWithModal(interaction, modal);
+    }
+
     public void respondWithAutocompleteChoices(JsonNode interaction, List<AutocompleteChoice> choices) {
         slashCommandRouter.respondWithAutocompleteChoices(interaction, choices);
     }
@@ -173,6 +177,10 @@ public final class DiscordClient implements AutoCloseable {
 
     public String getStringOption(JsonNode interaction, String optionName) {
         return slashCommandRouter.getOptionString(interaction, optionName);
+    }
+
+    public String getModalValue(JsonNode interaction, String customId) {
+        return slashCommandRouter.getModalValue(interaction, customId);
     }
 
     public void sendMessage(String channelId, String content) {
