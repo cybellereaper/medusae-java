@@ -168,11 +168,11 @@ public final class CommandFramework {
         return switch (parameter.kind()) {
             case CONTEXT -> context;
             case RAW_INTERACTION -> interaction.rawInteraction();
-            case TARGET_USER -> interaction.targetUser();
-            case TARGET_MEMBER -> interaction.targetMember();
-            case TARGET_CHANNEL -> interaction.targetChannel();
-            case TARGET_ROLE -> interaction.targetRole();
-            case TARGET_ATTACHMENT -> interaction.targetAttachment();
+            case TARGET_USER -> resolveEntityParameter(interaction.targetUser(), interaction.optionUsers(), parameter.optionName());
+            case TARGET_MEMBER -> resolveEntityParameter(interaction.targetMember(), interaction.optionMembers(), parameter.optionName());
+            case TARGET_CHANNEL -> resolveEntityParameter(interaction.targetChannel(), interaction.optionChannels(), parameter.optionName());
+            case TARGET_ROLE -> resolveEntityParameter(interaction.targetRole(), interaction.optionRoles(), parameter.optionName());
+            case TARGET_ATTACHMENT -> resolveEntityParameter(interaction.targetAttachment(), interaction.optionAttachments(), parameter.optionName());
             case TARGET_MESSAGE -> interaction.targetMessage();
             case OPTION -> resolveOption(type, interaction, parameter);
             case CUSTOM -> resolverRegistry.find(type)
@@ -220,6 +220,16 @@ public final class CommandFramework {
         throw new ResolutionException("Invalid option type for '" + parameter.optionName() + "'. Expected " + type.getSimpleName());
     }
 
+
+    private static Object resolveEntityParameter(Object contextTarget, java.util.Map<String, Object> optionTargets, String optionName) {
+        if (contextTarget != null) {
+            return contextTarget;
+        }
+        if (optionName == null) {
+            return null;
+        }
+        return optionTargets.get(optionName);
+    }
     private static Object convertString(String value, Class<?> type, CommandParameter parameter) {
         try {
             if (type == String.class) {

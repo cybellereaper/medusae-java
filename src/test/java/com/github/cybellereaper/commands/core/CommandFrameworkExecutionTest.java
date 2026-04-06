@@ -69,6 +69,26 @@ class CommandFrameworkExecutionTest {
         assertEquals(List.of("sp1", "sp2"), values);
     }
 
+
+    @Test
+    void resolvesSlashResolvedUserAndMemberOptions() {
+        CommandFramework framework = new CommandFramework();
+        var handler = new ResolvedEntityCommand();
+        framework.registerCommands(handler);
+
+        framework.execute(new CommandInteraction(
+                "entities", CommandType.CHAT_INPUT, null, null,
+                Map.of(), null, Map.of(), false, "g1", "u1", Set.of(), Set.of(),
+                null, null, null, null, null, null,
+                Map.of("target", new com.github.cybellereaper.client.ResolvedUser("42", "tester", null, false)),
+                Map.of("target", new com.github.cybellereaper.client.ResolvedMember("42", "TesterNick")),
+                Map.of(), Map.of(), Map.of()
+        ), response -> {});
+
+        assertEquals("tester", handler.lastUser);
+        assertEquals("42", handler.lastMemberId);
+    }
+
     @Command("greet")
     static final class GreetingCommand {
         private String lastName;
@@ -92,4 +112,19 @@ class CommandFrameworkExecutionTest {
         @Execute
         void root(@Name("reason") @Autocomplete("reasons") String reason) {}
     }
+
+
+    @Command("entities")
+    static final class ResolvedEntityCommand {
+        private String lastUser;
+        private String lastMemberId;
+
+        @Execute
+        void root(@Name("target") com.github.cybellereaper.client.ResolvedUser user,
+                  @Name("target") com.github.cybellereaper.client.ResolvedMember member) {
+            lastUser = user == null ? null : user.username();
+            lastMemberId = member == null ? null : member.userId();
+        }
+    }
+
 }

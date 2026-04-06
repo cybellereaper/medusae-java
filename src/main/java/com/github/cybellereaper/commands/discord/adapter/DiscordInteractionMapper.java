@@ -1,10 +1,7 @@
 package com.github.cybellereaper.commands.discord.adapter;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.github.cybellereaper.client.InteractionContext;
-import com.github.cybellereaper.client.ResolvedMember;
-import com.github.cybellereaper.client.ResolvedMessage;
-import com.github.cybellereaper.client.ResolvedUser;
+import com.github.cybellereaper.client.*;
 import com.github.cybellereaper.commands.core.model.CommandInteraction;
 import com.github.cybellereaper.commands.core.model.CommandOptionValue;
 import com.github.cybellereaper.commands.core.model.CommandType;
@@ -22,8 +19,7 @@ public final class DiscordInteractionMapper {
         JsonNode data = interaction.path("data");
         CommandType commandType = mapCommandType(data.path("type").asInt(1));
 
-        Route route = parseOptions(data.path("options"), new HashMap<>(), new Route(null, null));
-        Map<String, CommandOptionValue> options = route.options;
+        ParsedData parsed = parseOptions(data.path("options"), new ParsedData());
 
         String targetId = textOrNull(data.path("target_id"));
         ResolvedUser targetUser = commandType == CommandType.USER_CONTEXT && targetId != null ? context.resolvedUserValue(targetId) : null;
@@ -35,9 +31,9 @@ public final class DiscordInteractionMapper {
         return new CommandInteraction(
                 data.path("name").asText(""),
                 commandType,
-                route.group,
-                route.subcommand,
-                options,
+                parsed.group,
+                parsed.subcommand,
+                parsed.options,
                 focusedOption(data.path("options")),
                 interaction,
                 context.guildId() == null,
@@ -50,7 +46,12 @@ public final class DiscordInteractionMapper {
                 null,
                 null,
                 null,
-                targetMessage
+                targetMessage,
+                parsed.optionUsers,
+                parsed.optionMembers,
+                parsed.optionChannels,
+                parsed.optionRoles,
+                parsed.optionAttachments
         );
     }
 
@@ -78,11 +79,11 @@ public final class DiscordInteractionMapper {
         return null;
     }
 
-    private static Route parseOptions(JsonNode nodes, Map<String, CommandOptionValue> options, Route seed) {
-        Route route = seed;
+    private static ParsedData parseOptions(JsonNode nodes, ParsedData parsedData) {
         if (!nodes.isArray()) {
-            return route.withOptions(options);
+            return parsedData;
         }
+
         for (JsonNode option : nodes) {
             int type = option.path("type").asInt(0);
             String name = textOrNull(option.path("name"));
@@ -91,24 +92,27 @@ public final class DiscordInteractionMapper {
             }
 
             if (type == 1) {
-                route = new Route(route.group, name, options);
-                route = parseOptions(option.path("options"), options, route);
+                parsedData.subcommand = name;
+                parseOptions(option.path("options"), parsedData);
                 continue;
             }
             if (type == 2) {
+                parsedData.group = name;
                 JsonNode children = option.path("options");
                 if (children.isArray() && !children.isEmpty()) {
                     JsonNode subcommandNode = children.get(0);
-                    String subcommandName = textOrNull(subcommandNode.path("name"));
-                    route = new Route(name, subcommandName, options);
-                    route = parseOptions(subcommandNode.path("options"), options, route);
+                    parsedData.subcommand = textOrNull(subcommandNode.path("name"));
+                    parseOptions(subcommandNode.path("options"), parsedData);
                 }
                 continue;
             }
 
-            options.put(name, new CommandOptionValue(parseValue(option.path("value")), type));
+            Object rawValue = parseValue(option.path("value"));
+            parsedData.options.put(name, new CommandOptionValue(rawValue, type));
+            parsedData.collectResolvedEntities(name, type, rawValue, option.path("resolved"), option.path("value"));
         }
-        return route.withOptions(options);
+
+        return parsedData;
     }
 
     private static Object parseValue(JsonNode value) {
@@ -135,13 +139,47 @@ public final class DiscordInteractionMapper {
         return text == null || text.isBlank() ? null : text;
     }
 
-    private record Route(String group, String subcommand, Map<String, CommandOptionValue> options) {
-        private Route(String group, String subcommand) {
-            this(group, subcommand, Map.of());
+    private static final class ParsedData {
+        private String group;
+        private String subcommand;
+        private final Map<String, CommandOptionValue> options = new HashMap<>();
+        private final Map<String, Object> optionUsers = new HashMap<>();
+        private final Map<String, Object> optionMembers = new HashMap<>();
+        private final Map<String, Object> optionChannels = new HashMap<>();
+        private final Map<String, Object> optionRoles = new HashMap<>();
+        private final Map<String, Object> optionAttachments = new HashMap<>();
+
+        private void collectResolvedEntities(String optionName, int optionType, Object rawValue, JsonNode resolved, JsonNode rawOptionValue) {
+            String entityId = resolveEntityId(rawValue, rawOptionValue);
+            if (entityId == null) {
+                return;
+            }
+
+            switch (optionType) {
+                case 6 -> {
+                    optionUsers.put(optionName, ResolvedUser.from(resolved.path("users").path(entityId)));
+                    optionMembers.put(optionName, ResolvedMember.from(entityId, resolved.path("members").path(entityId)));
+                }
+                case 7 -> optionChannels.put(optionName, ResolvedChannel.from(resolved.path("channels").path(entityId)));
+                case 8 -> optionRoles.put(optionName, ResolvedRole.from(resolved.path("roles").path(entityId)));
+                case 11 -> optionAttachments.put(optionName, ResolvedAttachment.from(resolved.path("attachments").path(entityId)));
+                default -> {
+                    // not a resolved-entity option
+                }
+            }
         }
 
-        private Route withOptions(Map<String, CommandOptionValue> newOptions) {
-            return new Route(group, subcommand, Map.copyOf(newOptions));
+        private static String resolveEntityId(Object rawValue, JsonNode rawOptionValue) {
+            if (rawValue instanceof String value && !value.isBlank()) {
+                return value;
+            }
+            if (rawValue instanceof Number number) {
+                return Long.toString(number.longValue());
+            }
+            if (rawOptionValue != null && rawOptionValue.isIntegralNumber()) {
+                return Long.toString(rawOptionValue.longValue());
+            }
+            return null;
         }
     }
 }
