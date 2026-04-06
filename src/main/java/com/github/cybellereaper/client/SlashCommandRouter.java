@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -22,6 +23,8 @@ final class SlashCommandRouter {
     private final Map<String, Consumer<InteractionContext>> componentHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<InteractionContext>> modalHandlers = new ConcurrentHashMap<>();
     private final Map<String, Consumer<InteractionContext>> autocompleteHandlers = new ConcurrentHashMap<>();
+    private final List<Consumer<InteractionContext>> globalComponentHandlers = new CopyOnWriteArrayList<>();
+    private final List<Consumer<InteractionContext>> globalModalHandlers = new CopyOnWriteArrayList<>();
     private final InteractionResponder responder;
 
     SlashCommandRouter(InteractionResponder responder) {
@@ -70,6 +73,16 @@ final class SlashCommandRouter {
         registerUniqueHandler(modalHandlers, customId, "modal", handler::handle);
     }
 
+    void registerGlobalComponentContextHandler(InteractionHandler handler) {
+        Objects.requireNonNull(handler, "handler");
+        globalComponentHandlers.add(handler::handle);
+    }
+
+    void registerGlobalModalContextHandler(InteractionHandler handler) {
+        Objects.requireNonNull(handler, "handler");
+        globalModalHandlers.add(handler::handle);
+    }
+
     void registerAutocompleteContextHandler(String commandName, InteractionHandler handler) {
         registerUniqueHandler(autocompleteHandlers, commandName, "autocomplete", handler::handle);
     }
@@ -92,8 +105,8 @@ final class SlashCommandRouter {
             case PING -> respond(interaction, ResponseType.PONG, null);
             case APPLICATION_COMMAND -> handleApplicationCommand(interaction);
             case APPLICATION_COMMAND_AUTOCOMPLETE -> dispatchByDataField(interaction, autocompleteHandlers, DataField.NAME);
-            case MESSAGE_COMPONENT -> dispatchByDataField(interaction, componentHandlers, DataField.CUSTOM_ID);
-            case MODAL_SUBMIT -> dispatchByDataField(interaction, modalHandlers, DataField.CUSTOM_ID);
+            case MESSAGE_COMPONENT -> dispatchByDataField(interaction, componentHandlers, globalComponentHandlers, DataField.CUSTOM_ID);
+            case MODAL_SUBMIT -> dispatchByDataField(interaction, modalHandlers, globalModalHandlers, DataField.CUSTOM_ID);
             case UNKNOWN -> {
                 // Unknown interaction types are intentionally ignored.
             }
@@ -164,12 +177,27 @@ final class SlashCommandRouter {
         dispatchByDataField(interaction, handlers, DataField.NAME);
     }
 
-    private void dispatchByDataField(JsonNode interaction, Map<String, Consumer<InteractionContext>> handlers, DataField dataField) {
+    private void dispatchByDataField(
+            JsonNode interaction,
+            Map<String, Consumer<InteractionContext>> handlers,
+            List<Consumer<InteractionContext>> globalHandlers,
+            DataField dataField
+    ) {
         String handlerKey = interaction.path(DATA_FIELD).path(dataField.value()).asText("").trim();
+        InteractionContext context = InteractionContext.from(interaction, responder);
         Consumer<InteractionContext> contextHandler = handlers.get(handlerKey);
         if (contextHandler != null) {
-            contextHandler.accept(InteractionContext.from(interaction, responder));
+            contextHandler.accept(context);
+            return;
         }
+
+        for (Consumer<InteractionContext> globalHandler : globalHandlers) {
+            globalHandler.accept(context);
+        }
+    }
+
+    private void dispatchByDataField(JsonNode interaction, Map<String, Consumer<InteractionContext>> handlers, DataField dataField) {
+        dispatchByDataField(interaction, handlers, List.of(), dataField);
     }
 
     private void respond(JsonNode interaction, ResponseType responseType, Map<String, Object> data) {

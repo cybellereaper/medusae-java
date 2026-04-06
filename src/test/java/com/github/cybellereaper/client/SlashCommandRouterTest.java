@@ -57,6 +57,39 @@ class SlashCommandRouterTest {
         assertEquals(1, modalCount.get());
     }
 
+    @Test
+    void routesComponentAndModalToGlobalHandlersWhenCustomIdIsNotRegistered() throws Exception {
+        AtomicInteger componentCount = new AtomicInteger(0);
+        AtomicInteger modalCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerGlobalComponentContextHandler(context -> componentCount.incrementAndGet());
+        router.registerGlobalModalContextHandler(context -> modalCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(3, null, "ticket:close:42|sig", "1", "token", null, null));
+        router.handleInteraction(interactionPayload(5, null, "ticket:create|sig", "2", "token", null, null));
+
+        assertEquals(1, componentCount.get());
+        assertEquals(1, modalCount.get());
+    }
+
+    @Test
+    void prefersExactComponentHandlerOverGlobalHandler() throws Exception {
+        AtomicInteger exactCount = new AtomicInteger(0);
+        AtomicInteger globalCount = new AtomicInteger(0);
+
+        SlashCommandRouter router = new SlashCommandRouter((id, token, type, data) -> {
+        });
+        router.registerComponentHandler("confirm_button", ignored -> exactCount.incrementAndGet());
+        router.registerGlobalComponentContextHandler(context -> globalCount.incrementAndGet());
+
+        router.handleInteraction(interactionPayload(3, null, "confirm_button", "1", "token", null, null));
+
+        assertEquals(1, exactCount.get());
+        assertEquals(0, globalCount.get());
+    }
+
 
     @Test
     void routesUnknownApplicationCommandTypeToSlashHandlers() throws Exception {

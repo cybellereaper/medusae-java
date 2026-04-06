@@ -29,6 +29,8 @@ public final class DiscordFrameworkBinder {
         Objects.requireNonNull(dispatcher, "dispatcher");
 
         framework.registry().all().forEach(definition -> registerDefinition(client, dispatcher, definition));
+        client.onAnyComponentInteractionContext(context -> dispatcher.dispatchComponent(context.raw(), context));
+        client.onAnyModalSubmitContext(context -> dispatcher.dispatchModal(context.raw(), context));
     }
 
     static boolean requiresAutocompleteRegistration(CommandDefinition definition) {

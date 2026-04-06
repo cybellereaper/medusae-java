@@ -127,6 +127,10 @@ public final class DiscordClient implements AutoCloseable {
         slashCommandRouter.registerComponentContextHandler(customId, listener);
     }
 
+    public void onAnyComponentInteractionContext(InteractionHandler listener) {
+        slashCommandRouter.registerGlobalComponentContextHandler(listener);
+    }
+
     @Deprecated(forRemoval = false, since = "1.1")
     public void onModalSubmit(String customId, Consumer<JsonNode> listener) {
         slashCommandRouter.registerModalHandler(customId, listener);
@@ -134,6 +138,10 @@ public final class DiscordClient implements AutoCloseable {
 
     public void onModalSubmitContext(String customId, InteractionHandler listener) {
         slashCommandRouter.registerModalContextHandler(customId, listener);
+    }
+
+    public void onAnyModalSubmitContext(InteractionHandler listener) {
+        slashCommandRouter.registerGlobalModalContextHandler(listener);
     }
 
     public DiscordApi api() {

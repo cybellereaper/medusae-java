@@ -61,6 +61,23 @@ public final class DiscordCommandDispatcher {
         dispatchComponent(interaction, interactionContext, InteractionHandlerType.BUTTON);
     }
 
+    public void dispatchComponent(JsonNode interaction, InteractionContext interactionContext) {
+        java.util.Objects.requireNonNull(interaction, "interaction");
+        java.util.Objects.requireNonNull(interactionContext, "interactionContext");
+        InteractionHandlerType type = switch (interaction.path("data").path("component_type").asInt()) {
+            case 2 -> InteractionHandlerType.BUTTON;
+            case 3 -> InteractionHandlerType.STRING_SELECT;
+            case 5 -> InteractionHandlerType.USER_SELECT;
+            case 6 -> InteractionHandlerType.ROLE_SELECT;
+            case 7 -> InteractionHandlerType.MENTIONABLE_SELECT;
+            case 8 -> InteractionHandlerType.CHANNEL_SELECT;
+            default -> null;
+        };
+        if (type != null) {
+            dispatchComponent(interaction, interactionContext, type);
+        }
+    }
+
     public void dispatchStringSelect(JsonNode interaction, InteractionContext interactionContext) {
         dispatchComponent(interaction, interactionContext, InteractionHandlerType.STRING_SELECT);
     }
