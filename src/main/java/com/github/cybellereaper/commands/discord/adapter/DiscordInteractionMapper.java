@@ -11,22 +11,25 @@ import com.github.cybellereaper.commands.core.model.CommandType;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public final class DiscordInteractionMapper {
     public CommandInteraction toCoreInteraction(JsonNode interaction, InteractionContext context) {
+        Objects.requireNonNull(interaction, "interaction");
+        Objects.requireNonNull(context, "context");
+
         JsonNode data = interaction.path("data");
         CommandType commandType = mapCommandType(data.path("type").asInt(1));
 
-        Route route = new Route(null, null);
-        Map<String, CommandOptionValue> options = new HashMap<>();
-        route = parseOptions(data.path("options"), options, route);
+        Route route = parseOptions(data.path("options"), new HashMap<>(), new Route(null, null));
+        Map<String, CommandOptionValue> options = route.options;
 
-        String targetId = data.path("target_id").asText(null);
-        ResolvedUser targetUser = commandType == CommandType.USER_CONTEXT ? context.resolvedUserValue(targetId) : null;
-        ResolvedMember targetMember = commandType == CommandType.USER_CONTEXT ? context.resolvedMemberValue(targetId) : null;
-        ResolvedMessage targetMessage = commandType == CommandType.MESSAGE_CONTEXT
-                ? ResolvedMessage.from(data.path("resolved").path("messages").path(targetId == null ? "" : targetId))
+        String targetId = textOrNull(data.path("target_id"));
+        ResolvedUser targetUser = commandType == CommandType.USER_CONTEXT && targetId != null ? context.resolvedUserValue(targetId) : null;
+        ResolvedMember targetMember = commandType == CommandType.USER_CONTEXT && targetId != null ? context.resolvedMemberValue(targetId) : null;
+        ResolvedMessage targetMessage = commandType == CommandType.MESSAGE_CONTEXT && targetId != null
+                ? ResolvedMessage.from(data.path("resolved").path("messages").path(targetId))
                 : null;
 
         return new CommandInteraction(
@@ -65,7 +68,7 @@ public final class DiscordInteractionMapper {
         }
         for (JsonNode option : options) {
             if (option.path("focused").asBoolean(false)) {
-                return option.path("name").asText(null);
+                return textOrNull(option.path("name"));
             }
             String nested = focusedOption(option.path("options"));
             if (nested != null) {
@@ -78,32 +81,40 @@ public final class DiscordInteractionMapper {
     private static Route parseOptions(JsonNode nodes, Map<String, CommandOptionValue> options, Route seed) {
         Route route = seed;
         if (!nodes.isArray()) {
-            return route;
+            return route.withOptions(options);
         }
         for (JsonNode option : nodes) {
             int type = option.path("type").asInt(0);
-            String name = option.path("name").asText("");
+            String name = textOrNull(option.path("name"));
+            if (name == null) {
+                continue;
+            }
+
             if (type == 1) {
-                route = new Route(route.group, name);
+                route = new Route(route.group, name, options);
                 route = parseOptions(option.path("options"), options, route);
                 continue;
             }
             if (type == 2) {
-                JsonNode child = option.path("options");
-                if (child.isArray() && !child.isEmpty()) {
-                    JsonNode subcommandNode = child.get(0);
-                    route = new Route(name, subcommandNode.path("name").asText(null));
+                JsonNode children = option.path("options");
+                if (children.isArray() && !children.isEmpty()) {
+                    JsonNode subcommandNode = children.get(0);
+                    String subcommandName = textOrNull(subcommandNode.path("name"));
+                    route = new Route(name, subcommandName, options);
                     route = parseOptions(subcommandNode.path("options"), options, route);
                 }
                 continue;
             }
-            Object value = parseValue(option.path("value"));
-            options.put(name, new CommandOptionValue(value, type));
+
+            options.put(name, new CommandOptionValue(parseValue(option.path("value")), type));
         }
-        return route;
+        return route.withOptions(options);
     }
 
     private static Object parseValue(JsonNode value) {
+        if (value == null || value.isNull() || value.isMissingNode()) {
+            return null;
+        }
         if (value.isBoolean()) {
             return value.asBoolean();
         }
@@ -113,8 +124,24 @@ public final class DiscordInteractionMapper {
         if (value.isFloatingPointNumber()) {
             return value.asDouble();
         }
-        return value.asText(null);
+        return textOrNull(value);
     }
 
-    private record Route(String group, String subcommand) {}
+    private static String textOrNull(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return null;
+        }
+        String text = node.asText(null);
+        return text == null || text.isBlank() ? null : text;
+    }
+
+    private record Route(String group, String subcommand, Map<String, CommandOptionValue> options) {
+        private Route(String group, String subcommand) {
+            this(group, subcommand, Map.of());
+        }
+
+        private Route withOptions(Map<String, CommandOptionValue> newOptions) {
+            return new Route(group, subcommand, Map.copyOf(newOptions));
+        }
+    }
 }

@@ -52,6 +52,8 @@ public final class CommandFramework {
     }
 
     public List<String> executeAutocomplete(CommandInteraction interaction, CommandResponder responder) {
+        Objects.requireNonNull(interaction, "interaction");
+        Objects.requireNonNull(responder, "responder");
         CommandDefinition definition = commandRegistry.find(interaction.commandName())
                 .orElseThrow(() -> new CommandNotFoundException("Unknown command: " + interaction.commandName()));
 
@@ -84,6 +86,8 @@ public final class CommandFramework {
     }
 
     public void execute(CommandInteraction interaction, CommandResponder responder) {
+        Objects.requireNonNull(interaction, "interaction");
+        Objects.requireNonNull(responder, "responder");
         CommandContext context = new CommandContext(interaction, responder);
         try {
             CommandDefinition definition = commandRegistry.find(interaction.commandName())

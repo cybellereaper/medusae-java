@@ -11,6 +11,10 @@ void main() throws Exception {
     String token = System.getenv("DISCORD_BOT_TOKEN");
     String guildId = System.getenv("DISCORD_GUILD_ID");
 
+    if (token == null || token.isBlank()) {
+        throw new IllegalStateException("DISCORD_BOT_TOKEN must be set");
+    }
+
     DiscordClientConfig config = DiscordClientConfig.builder(token)
             .intents(GatewayIntent.combine(GatewayIntent.GUILDS))
             .build();

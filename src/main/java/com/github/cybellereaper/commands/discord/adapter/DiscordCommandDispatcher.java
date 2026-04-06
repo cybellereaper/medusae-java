@@ -17,11 +17,13 @@ public final class DiscordCommandDispatcher {
     private final DiscordInteractionMapper mapper;
 
     public DiscordCommandDispatcher(CommandFramework framework) {
-        this.framework = framework;
+        this.framework = java.util.Objects.requireNonNull(framework, "framework");
         this.mapper = new DiscordInteractionMapper();
     }
 
     public void dispatch(JsonNode interaction, InteractionContext interactionContext) {
+        java.util.Objects.requireNonNull(interaction, "interaction");
+        java.util.Objects.requireNonNull(interactionContext, "interactionContext");
         var coreInteraction = mapper.toCoreInteraction(interaction, interactionContext);
         var trackingResponder = new TrackingResponder(new DiscordResponseApplier(interactionContext));
 
@@ -39,6 +41,8 @@ public final class DiscordCommandDispatcher {
     }
 
     public void dispatchAutocomplete(JsonNode interaction, InteractionContext interactionContext) {
+        java.util.Objects.requireNonNull(interaction, "interaction");
+        java.util.Objects.requireNonNull(interactionContext, "interactionContext");
         var coreInteraction = mapper.toCoreInteraction(interaction, interactionContext);
         try {
             List<String> suggestions = framework.executeAutocomplete(coreInteraction, new DiscordResponseApplier(interactionContext));
