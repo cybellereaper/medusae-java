@@ -1,28 +1,44 @@
 # Jellycord
 
-Jellycord is a lightweight Java client for building Discord bots using both the Gateway and REST APIs.
+Jellycord is a Java library for building Discord bots with **two complementary command frameworks**:
 
-## Features
+1. **Interaction Router API** (`DiscordClient` + `InteractionContext`) for lightweight, handler-first bots.
+2. **Annotation Command Framework** (`com.github.cybellereaper.commands`) for typed, modular command systems with checks, cooldowns, and schema sync.
 
-- Gateway connection and event subscription
-- Slash commands, context menus, autocomplete, component interactions, and modals
-- Message builders for embeds and components
-- REST helpers for common Discord resources through `DiscordApi`
-- Configurable retry/backoff for transient REST failures
-- Rate-limit observability hooks (`RateLimitObserver`)
-- Optional in-memory state cache for guild/channel/member snapshots
-- Attachment upload convenience helpers
+Both frameworks run on the same gateway + REST core, so you can start simple and migrate to annotations when your command surface grows.
+
+## What you get
+
+- Gateway lifecycle + event subscription
+- Slash commands, context menus, autocomplete, components, and modals
+- High-level interaction response helpers
+- REST convenience API (`DiscordApi`) for common resources
+- Retry/backoff + rate-limit observability hooks
+- Optional in-memory state cache
+- Attachment upload helpers
 - Voice transport primitives for gateway/audio frame workflows
 
 ## Installation
-
-Add Jellycord as a dependency in your Gradle build (replace with your published version once released):
 
 ```gradle
 implementation 'com.github.cybellereaper:jellycord:1.0.0'
 ```
 
-## Quick Start
+---
+
+## Framework selection guide
+
+Use this to choose the right abstraction for your bot:
+
+| If you want... | Use... |
+|---|---|
+| Small bot, direct handlers, minimum abstraction | **Interaction Router API** |
+| Declarative commands, reusable checks/resolvers, cleaner scaling | **Annotation Command Framework** |
+| Full control over Discord endpoints | `DiscordApi` (with either framework) |
+
+---
+
+## Quick start: Interaction Router API
 
 ```java
 String token = System.getenv("DISCORD_BOT_TOKEN");
@@ -32,32 +48,57 @@ DiscordClientConfig config = DiscordClientConfig.builder(token)
         .build();
 
 try (DiscordClient client = DiscordClient.create(config)) {
-    client.onSlashCommandContext("ping", context -> context.respondWithMessage("pong"));
+    client.onSlashCommandContext("ping", ctx -> ctx.respondWithMessage("pong"));
+
+    client.onSlashCommandContext("echo", ctx -> {
+        String text = ctx.requiredOptionString("text");
+        ctx.respondEphemeral("You said: " + text);
+    });
 
     client.registerGlobalSlashCommand("ping", "Reply with pong");
+    client.registerGlobalSlashCommand("echo", "Echo text");
+
     client.login();
     Thread.currentThread().join();
 }
 ```
 
-Prefer the higher-level interaction API when possible:
+### Interaction Router highlights
+
+- Register handlers with `on*Context(...)`
+- Use `InteractionContext` to read options and send replies
+- Supports slash commands, component interactions, autocomplete, and modal submit handlers
+
+---
+
+## Quick start: Annotation Command Framework
 
 ```java
-client.onSlashCommandContext("echo", context -> {
-    String text = context.optionString("text");
-    context.respondEphemeral("You said: " + text);
-});
+CommandFramework framework = new CommandFramework();
 
-client.onSlashCommandContext("profile-photo", context -> {
-    // Attachment options can be resolved directly from interaction payload metadata.
-    var attachment = context.optionResolvedAttachmentValue("photo");
-    context.respondEphemeral(attachment == null ? "No photo provided" : "Photo received: " + attachment.filename());
-});
+framework.registerCheck("guildonly", ctx -> !ctx.interaction().dm());
+framework.registerAutocomplete("membersearch", (ctx, value) -> List.of("alice", "bob"));
+framework.registerCommands(new UserCommands());
+
+DiscordCommandSyncService sync = new DiscordCommandSyncService(framework);
+sync.syncGlobal(discordClient);
 ```
 
-## Sharding
+### Annotation framework highlights
 
-Configure shard routing when running multiple gateway workers:
+- Slash + subcommands + subcommand groups
+- User/message context commands
+- Typed parameter binding with custom resolvers
+- Declarative checks, permissions, cooldowns, and autocomplete
+- Discord schema exporter + sync service
+
+Read more in [`docs-command-framework.md`](docs-command-framework.md).
+
+---
+
+## Core configuration examples
+
+### Sharding
 
 ```java
 DiscordClientConfig config = DiscordClientConfig.builder(token)
@@ -66,11 +107,7 @@ DiscordClientConfig config = DiscordClientConfig.builder(token)
         .build();
 ```
 
-When `shardCount > 1`, Jellycord includes the Discord gateway `shard` tuple during identify.
-
-## OAuth Scopes (Java 25 API Surface)
-
-Use `DiscordOAuthScopes` to build deterministic scope strings:
+### OAuth scopes
 
 ```java
 String scopes = DiscordOAuthScopes.join(
@@ -79,49 +116,7 @@ String scopes = DiscordOAuthScopes.join(
 );
 ```
 
-
-## Modal Support
-
-You can open a modal from any interaction and read submitted values on modal submit events:
-
-```java
-client.onSlashCommand("feedback", interaction -> {
-    DiscordModal modal = DiscordModal.of(
-            "feedback_modal",
-            "Feedback",
-            List.of(DiscordActionRow.of(List.of(
-                    DiscordTextInput.paragraph("feedback_text", "What can we improve?")
-                            .withLengthRange(10, 1000)
-            )))
-    );
-
-    client.respondWithModal(interaction, modal);
-});
-
-client.onModalSubmit("feedback_modal", interaction -> {
-    String feedback = client.getModalValue(interaction, "feedback_text");
-    client.respondEphemeral(interaction, "Thanks for your feedback: " + feedback);
-});
-```
-
-## REST API Helper
-
-Use `client.api()` for convenient access to common REST resources:
-
-```java
-JsonNode currentUser = client.api().getCurrentUser();
-JsonNode channel = client.api().getChannel("1234567890");
-client.api().deleteMessage("1234567890", "9876543210");
-```
-
-For custom calls, use:
-
-```java
-JsonNode response = client.api().request("GET", "/guilds/1234567890", null);
-```
-
-
-## Advanced REST + Reliability
+### Reliability hooks
 
 ```java
 RateLimitObserver observer = new RateLimitObserver() {
@@ -139,7 +134,15 @@ DiscordClient client = DiscordClient.create(
 );
 ```
 
-Use attachment uploads:
+### REST convenience access
+
+```java
+JsonNode currentUser = client.api().getCurrentUser();
+JsonNode channel = client.api().getChannel("1234567890");
+client.api().deleteMessage("1234567890", "9876543210");
+```
+
+### Attachment uploads
 
 ```java
 client.sendMessageWithAttachments(
@@ -149,31 +152,16 @@ client.sendMessageWithAttachments(
 );
 ```
 
+---
+
+## Additional docs
+
+- API reference: [`API.md`](API.md)
+- Annotation command framework details: [`docs-command-framework.md`](docs-command-framework.md)
+- Examples: `src/main/java/com/github/cybellereaper/examples/commands`
+
 ## Running tests
 
 ```bash
 ./gradlew test
 ```
-
-## Annotation Command Framework (Experimental)
-
-This repository now includes an annotation-first Discord command framework under `com.github.cybellereaper.commands`.
-
-```java
-CommandFramework framework = new CommandFramework();
-framework.registerCheck("guildonly", ctx -> !ctx.interaction().dm());
-framework.registerAutocomplete("membersearch", (ctx, value) -> List.of("a", "b"));
-framework.registerCommands(new UserCommands());
-
-DiscordCommandSyncService sync = new DiscordCommandSyncService(framework);
-sync.syncGlobal(discordClient);
-```
-
-### Supported features
-- Slash commands, subcommands, and subcommand groups
-- User context menu and message context menu commands
-- Typed option binding with custom resolvers
-- Declarative checks, permissions, cooldowns, and autocomplete
-- Command schema export + Discord registration sync service
-
-See `docs-command-framework.md` and `src/main/java/com/github/cybellereaper/examples/commands` for a complete example.

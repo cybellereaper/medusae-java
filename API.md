@@ -1,5 +1,7 @@
 # Jellycord API Reference (Core)
 
+This API surface powers both Jellycord command styles: the direct Interaction Router API and the Annotation Command Framework.
+
 ## `DiscordClient`
 
 `DiscordClient` is the main entry point for creating a bot client.
