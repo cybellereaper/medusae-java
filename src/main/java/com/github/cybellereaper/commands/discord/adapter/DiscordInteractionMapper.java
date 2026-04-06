@@ -19,7 +19,7 @@ public final class DiscordInteractionMapper {
         JsonNode data = interaction.path("data");
         CommandType commandType = mapCommandType(data.path("type").asInt(1));
 
-        ParsedData parsed = parseOptions(data.path("options"), new ParsedData());
+        ParsedData parsed = parseOptions(data.path("options"), data.path("resolved"), new ParsedData());
 
         String targetId = textOrNull(data.path("target_id"));
         ResolvedUser targetUser = commandType == CommandType.USER_CONTEXT && targetId != null ? context.resolvedUserValue(targetId) : null;
@@ -79,7 +79,7 @@ public final class DiscordInteractionMapper {
         return null;
     }
 
-    private static ParsedData parseOptions(JsonNode nodes, ParsedData parsedData) {
+    private static ParsedData parseOptions(JsonNode nodes, JsonNode globalResolved, ParsedData parsedData) {
         if (!nodes.isArray()) {
             return parsedData;
         }
@@ -93,7 +93,7 @@ public final class DiscordInteractionMapper {
 
             if (type == 1) {
                 parsedData.subcommand = name;
-                parseOptions(option.path("options"), parsedData);
+                parseOptions(option.path("options"), globalResolved, parsedData);
                 continue;
             }
             if (type == 2) {
@@ -102,14 +102,16 @@ public final class DiscordInteractionMapper {
                 if (children.isArray() && !children.isEmpty()) {
                     JsonNode subcommandNode = children.get(0);
                     parsedData.subcommand = textOrNull(subcommandNode.path("name"));
-                    parseOptions(subcommandNode.path("options"), parsedData);
+                    parseOptions(subcommandNode.path("options"), globalResolved, parsedData);
                 }
                 continue;
             }
 
             Object rawValue = parseValue(option.path("value"));
             parsedData.options.put(name, new CommandOptionValue(rawValue, type));
-            parsedData.collectResolvedEntities(name, type, rawValue, option.path("resolved"), option.path("value"));
+            JsonNode optionResolved = option.path("resolved");
+            JsonNode resolvedSource = optionResolved.isMissingNode() || optionResolved.isNull() ? globalResolved : optionResolved;
+            parsedData.collectResolvedEntities(name, type, rawValue, resolvedSource, option.path("value"));
         }
 
         return parsedData;

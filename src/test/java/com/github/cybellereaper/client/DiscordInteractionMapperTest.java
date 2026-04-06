@@ -33,7 +33,7 @@ class DiscordInteractionMapperTest {
     }
 
     @Test
-    void mapsResolvedUserAndMemberForSlashOptions() throws Exception {
+    void mapsResolvedUserAndMemberForSlashOptionsUsingDataResolved() throws Exception {
         DiscordInteractionMapper mapper = new DiscordInteractionMapper();
         var node = new ObjectMapper().readTree("""
                 {
@@ -43,15 +43,15 @@ class DiscordInteractionMapperTest {
                   "data":{
                     "name":"user",
                     "type":1,
+                    "resolved":{
+                      "users":{"42":{"id":"42","username":"tester"}},
+                      "members":{"42":{"nick":"ModTarget"}}
+                    },
                     "options":[
                       {
                         "name":"target",
                         "type":6,
-                        "value":"42",
-                        "resolved":{
-                          "users":{"42":{"id":"42","username":"tester"}},
-                          "members":{"42":{"nick":"ModTarget"}}
-                        }
+                        "value":"42"
                       }
                     ]
                   }
@@ -70,7 +70,6 @@ class DiscordInteractionMapperTest {
         assertEquals("42", member.userId());
     }
 
-
     @Test
     void ignoresMissingResolvedMemberInsteadOfCrashing() throws Exception {
         DiscordInteractionMapper mapper = new DiscordInteractionMapper();
@@ -82,14 +81,14 @@ class DiscordInteractionMapperTest {
                   "data":{
                     "name":"user",
                     "type":1,
+                    "resolved":{
+                      "users":{"42":{"id":"42","username":"tester"}}
+                    },
                     "options":[
                       {
                         "name":"target",
                         "type":6,
-                        "value":"42",
-                        "resolved":{
-                          "users":{"42":{"id":"42","username":"tester"}}
-                        }
+                        "value":"42"
                       }
                     ]
                   }
@@ -104,5 +103,4 @@ class DiscordInteractionMapperTest {
             assertFalse(interaction.optionMembers().containsKey("target"));
         });
     }
-
 }
