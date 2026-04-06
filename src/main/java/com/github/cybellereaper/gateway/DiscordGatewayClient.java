@@ -456,26 +456,6 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
         }
     }
 
-    private void clearResumableSessionState() {
-        sessionId = null;
-        resumeGatewayUri = null;
-        sequence = -1;
-    }
-
-    private void cancelHeartbeat() {
-        ScheduledFuture<?> currentHeartbeatTask = heartbeatTask;
-        heartbeatTask = null;
-        if (currentHeartbeatTask != null) {
-            currentHeartbeatTask.cancel(true);
-        }
-    }
-
-    private void ensureOpen() {
-        if (closed.get()) {
-            throw new IllegalStateException("Gateway client is already closed");
-        }
-    }
-
     @FunctionalInterface
     public interface EventDeserializer<T> {
         T deserialize(JsonNode rawEvent, ObjectMapper objectMapper);
@@ -483,61 +463,56 @@ public final class DiscordGatewayClient implements WebSocket.Listener, AutoClose
 
     private record TypedEventKey(Class<?> eventType, Object deserializerKey) {}
 
-    private static final class TypedEventListener<T> {
-        private final Class<T> eventType;
-        private final EventDeserializer<T> deserializer;
-        private final Consumer<T> listener;
-        private final boolean customDeserializer;
+    private record TypedEventListener<T>(Class<T> eventType, EventDeserializer<T> deserializer, Consumer<T> listener, boolean customDeserializer) {
+            private static final Object DEFAULT_DESERIALIZER_KEY = new Object();
 
-        private static final Object DEFAULT_DESERIALIZER_KEY = new Object();
+            private TypedEventListener(Class<T> eventType, EventDeserializer<T> deserializer, Consumer<T> listener) {
+                this(eventType, deserializer, listener, true);
+            }
 
-        private TypedEventListener(Class<T> eventType, EventDeserializer<T> deserializer, Consumer<T> listener) {
-            this(eventType, deserializer, listener, true);
-        }
+            private TypedEventListener(
+                    Class<T> eventType,
+                    EventDeserializer<T> deserializer,
+                    Consumer<T> listener,
+                    boolean customDeserializer
+            ) {
+                this.eventType = Objects.requireNonNull(eventType, "eventType");
+                this.deserializer = Objects.requireNonNull(deserializer, "deserializer");
+                this.listener = Objects.requireNonNull(listener, "listener");
+                this.customDeserializer = customDeserializer;
+            }
 
-        private TypedEventListener(
-                Class<T> eventType,
-                EventDeserializer<T> deserializer,
-                Consumer<T> listener,
-                boolean customDeserializer
-        ) {
-            this.eventType = Objects.requireNonNull(eventType, "eventType");
-            this.deserializer = Objects.requireNonNull(deserializer, "deserializer");
-            this.listener = Objects.requireNonNull(listener, "listener");
-            this.customDeserializer = customDeserializer;
-        }
+            private static <T> EventDeserializer<T> defaultDeserializer(Class<T> eventType) {
+                return (rawEvent, objectMapper) -> objectMapper.convertValue(rawEvent, eventType);
+            }
 
-        private static <T> EventDeserializer<T> defaultDeserializer(Class<T> eventType) {
-            return (rawEvent, objectMapper) -> objectMapper.convertValue(rawEvent, eventType);
-        }
+            private static <T> TypedEventListener<T> withDefaultDeserializer(Class<T> eventType, Consumer<T> listener) {
+                return new TypedEventListener<>(eventType, defaultDeserializer(eventType), listener, false);
+            }
 
-        private static <T> TypedEventListener<T> withDefaultDeserializer(Class<T> eventType, Consumer<T> listener) {
-            return new TypedEventListener<>(eventType, defaultDeserializer(eventType), listener, false);
-        }
+            @SuppressWarnings("unchecked")
+            private void accept(JsonNode rawEvent, Map<TypedEventKey, Object> eventCache, ObjectMapper objectMapper) {
+                Object deserializerKey = customDeserializer ? deserializer : DEFAULT_DESERIALIZER_KEY;
+                TypedEventKey cacheKey = new TypedEventKey(eventType, deserializerKey);
+                Object typedEvent = eventCache.computeIfAbsent(cacheKey, ignored -> deserialize(rawEvent, objectMapper));
+                listener.accept((T) typedEvent);
+            }
 
-        @SuppressWarnings("unchecked")
-        private void accept(JsonNode rawEvent, Map<TypedEventKey, Object> eventCache, ObjectMapper objectMapper) {
-            Object deserializerKey = customDeserializer ? deserializer : DEFAULT_DESERIALIZER_KEY;
-            TypedEventKey cacheKey = new TypedEventKey(eventType, deserializerKey);
-            Object typedEvent = eventCache.computeIfAbsent(cacheKey, ignored -> deserialize(rawEvent, objectMapper));
-            listener.accept((T) typedEvent);
-        }
+            private T deserialize(JsonNode rawEvent, ObjectMapper objectMapper) {
+                try {
+                    return deserializer.deserialize(rawEvent, objectMapper);
+                } catch (IllegalArgumentException exception) {
+                    throw new GatewaySerializationException(
+                            "Failed to deserialize gateway event to " + eventType.getName(),
+                            exception
+                    );
+                }
+            }
 
-        private T deserialize(JsonNode rawEvent, ObjectMapper objectMapper) {
-            try {
-                return deserializer.deserialize(rawEvent, objectMapper);
-            } catch (IllegalArgumentException exception) {
-                throw new GatewaySerializationException(
-                        "Failed to deserialize gateway event to " + eventType.getName(),
-                        exception
-                );
+            private boolean matches(Class<?> expectedType, Consumer<?> expectedListener) {
+                return eventType == expectedType && listener == expectedListener;
             }
         }
-
-        private boolean matches(Class<?> expectedType, Consumer<?> expectedListener) {
-            return eventType == expectedType && listener == expectedListener;
-        }
-    }
 
     private static String requireNonBlank(String value, String fieldName) {
         Objects.requireNonNull(value, fieldName);
