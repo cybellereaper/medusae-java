@@ -1,19 +1,19 @@
 # Annotation Command Framework
 
-This document explains the annotation-first framework under `com.github.cybellereaper.commands`.
+This guide covers the annotation-first framework in `com.github.cybellereaper.commands`.
 
-Use this framework when you want command modules that scale cleanly (typed options, reusable checks, custom resolvers, and explicit cooldown/permission policies).
+Use it when you need command modules that scale with typed options, reusable checks/resolvers, and explicit permission/cooldown policy.
 
-## Architecture at a glance
+## Architecture overview
 
-The framework is split into:
+The framework is split into two layers:
 
-- **Core (transport-agnostic)**: parsing annotations, validating metadata, command execution pipeline.
-- **Discord adapter layer**: maps Discord interactions into core models and applies framework responses back to Discord.
+- **Core (transport-agnostic):** annotation parsing, metadata validation, command execution pipeline.
+- **Discord adapter:** maps Discord interactions into core models and applies framework responses back to Discord.
 
-That separation lets you keep command/business logic isolated from Discord transport wiring.
+This separation keeps command/business logic isolated from Discord transport concerns.
 
-## Getting started
+## Quick start
 
 ```java
 CommandFramework framework = new CommandFramework();
@@ -31,25 +31,25 @@ sync.syncGlobal(discordClient);
 
 ## Annotation model
 
-### Command declaration
+### Command declarations
 
-- `@Command`: root command (slash or context command)
+- `@Command`: root slash/context command
 - `@Subcommand`: slash subcommand handler
 - `@SubcommandGroup`: groups related subcommands
-- `@Execute`: executable method entrypoint
+- `@Execute`: executable entrypoint
 - `@Autocomplete`: autocomplete handler (method or parameter level)
 
 ### Parameter metadata
 
 - `@Name`: explicit Discord option name
-- `@Optional`: marks parameter optional
-- `Optional<T>` (Java type): marks an option optional while still preserving the option type (`T`)
-- `@Default`: fallback value when option absent
-- parameter-level `@Autocomplete`: links autocomplete provider to option
+- `@Optional`: parameter is optional
+- `Optional<T>`: optional option while preserving option type
+- `@Default`: fallback value when option is absent
+- Parameter-level `@Autocomplete`: binds an option to a provider
 
 ### Cross-cutting policies
 
-Composable at class or method level:
+Composable at class or method scope:
 
 - `@GuildOnly`
 - `@DmOnly`
@@ -60,36 +60,36 @@ Composable at class or method level:
 
 ## Execution pipeline
 
-1. Discord interaction is mapped into `CommandInteraction`.
-2. `CommandFramework` resolves a `CommandDefinition` + `CommandHandler` from `CommandRegistry`.
-3. `CommandContext` is created with a `CommandResponder`.
-4. Checks, permission constraints, and cooldown rules are evaluated.
-5. Parameters are bound via built-in and custom resolvers.
-6. Handler method is invoked using cached reflection metadata.
-7. `CommandResponse` outputs are translated by responder adapters.
-8. Exceptions are delegated to `CommandExceptionHandler`.
+1. Map Discord interaction into `CommandInteraction`.
+2. Resolve `CommandDefinition` + `CommandHandler` from `CommandRegistry`.
+3. Create `CommandContext` with a `CommandResponder`.
+4. Evaluate checks, permissions, and cooldown rules.
+5. Bind parameters using built-in/custom resolvers.
+6. Invoke handler using cached reflection metadata.
+7. Translate `CommandResponse` through responder adapters.
+8. Delegate exceptions to `CommandExceptionHandler`.
 
 ## Extension points
 
-- `ResolverRegistry`: custom typed option binding.
-- `CheckRegistry`: reusable policy checks by ID.
-- `AutocompleteRegistry`: autocomplete providers by ID.
-- `CommandExceptionHandler`: global exception mapping/logging.
+- `ResolverRegistry`: register custom typed option binding
+- `CheckRegistry`: reusable policy checks by ID
+- `AutocompleteRegistry`: autocomplete providers by ID
+- `CommandExceptionHandler`: centralized exception mapping/logging
 
 ## Discord-specific behavior
 
-- Supports slash command trees (root options, subcommands, groups).
-- Supports user and message context commands.
-- Autocomplete can come from annotation handlers or registered provider IDs.
-- Follow-up response models exist in core; Discord follow-up helpers are intentionally explicit when unsupported.
+- Full slash command trees (root options, subcommands, groups)
+- User and message context commands
+- Autocomplete from annotation handlers or registered provider IDs
+- Core follow-up models supported; Discord follow-up helpers are explicit when unsupported
 
 ## Recommended project structure
 
-For larger bots, keep command code organized by concern:
+For larger bots, organize commands by concern:
 
 - `commands/moderation/*`
 - `commands/admin/*`
 - `commands/utility/*`
-- shared checks/resolvers in dedicated packages
+- Shared checks/resolvers in dedicated packages
 
-This avoids large command classes and keeps policy rules reusable.
+This avoids large command classes and keeps policy logic reusable.

@@ -1,19 +1,19 @@
-# Medusae (formerly known as jellycord)
+# Medusae (formerly `jellycord`)
 
-Medusae is a Java library for building Discord bots with **two complementary command frameworks**:
+Medusae is a Java library for building Discord bots with **two complementary command models** that share the same gateway and REST core.
 
-1. **Interaction Router API** (`DiscordClient` + `InteractionContext`) for lightweight, handler-first bots.
-2. **Annotation Command Framework** (`com.github.cybellereaper.commands`) for typed, modular command systems with checks, cooldowns, and schema sync.
+- **Interaction Router API** (`DiscordClient` + `InteractionContext`): lightweight, handler-first, minimal abstraction.
+- **Annotation Command Framework** (`com.github.cybellereaper.commands`): scalable typed commands with reusable checks, cooldowns, and schema sync.
 
-Both frameworks run on the same gateway + REST core, so you can start simple and migrate to annotations when your command surface grows.
+Start small with direct handlers, then migrate to annotations as your bot surface grows.
 
-## What you get
+## Features
 
-- Gateway lifecycle + event subscription
+- Gateway lifecycle management and event subscription
 - Slash commands, context menus, autocomplete, components, and modals
 - High-level interaction response helpers
-- REST convenience API (`DiscordApi`) for common resources
-- Retry/backoff + rate-limit observability hooks
+- REST convenience layer (`DiscordApi`)
+- Retry/backoff controls and rate-limit observability hooks
 - Optional in-memory state cache
 - Attachment upload helpers
 - Voice transport primitives for gateway/audio frame workflows
@@ -24,19 +24,13 @@ Both frameworks run on the same gateway + REST core, so you can start simple and
 implementation 'com.github.cybellereaper:Medusae:1.0.0'
 ```
 
----
+## Choose a framework
 
-## Framework selection guide
-
-Use this to choose the right abstraction for your bot:
-
-| If you want... | Use... |
-|---|---|
-| Small bot, direct handlers, minimum abstraction | **Interaction Router API** |
-| Declarative commands, reusable checks/resolvers, cleaner scaling | **Annotation Command Framework** |
-| Full control over Discord endpoints | `DiscordApi` (with either framework) |
-
----
+| Goal | Recommended API |
+| --- | --- |
+| Small bot, direct handlers, low ceremony | **Interaction Router API** |
+| Typed modules, reusable policies, scalable command architecture | **Annotation Command Framework** |
+| Fine-grained endpoint control | `DiscordApi` (works with either framework) |
 
 ## Quick start: Interaction Router API
 
@@ -63,13 +57,11 @@ try (DiscordClient client = DiscordClient.create(config)) {
 }
 ```
 
-### Interaction Router highlights
+### Router highlights
 
 - Register handlers with `on*Context(...)`
-- Use `InteractionContext` to read options and send replies
-- Supports slash commands, component interactions, autocomplete, and modal submit handlers
-
----
+- Read typed options and send responses through `InteractionContext`
+- Support slash commands, components, autocomplete, and modal submissions
 
 ## Quick start: Annotation Command Framework
 
@@ -84,22 +76,19 @@ DiscordCommandSyncService sync = new DiscordCommandSyncService(framework);
 sync.syncGlobal(discordClient);
 ```
 
-### Annotation framework highlights
+### Annotation highlights
 
-- Slash + subcommands + subcommand groups
+- Slash commands, subcommands, and subcommand groups
 - User/message context commands
 - Typed parameter binding with custom resolvers
 - Declarative checks, permissions, cooldowns, and autocomplete
-- Discord schema exporter + sync service
+- Discord schema export + sync service
 
-Read more in [`docs-command-framework.md`](docs-command-framework.md).
+See [`docs-command-framework.md`](docs-command-framework.md) for full details.
 
----
+## Annotated gateway events
 
-
-## Annotation Gateway Events
-
-You can also register gateway listeners through annotations, using the same module-centric style as command annotations.
+You can register gateway listeners with annotations in the same module-centric style:
 
 ```java
 AnnotatedGatewayEventBinder binder = new AnnotatedGatewayEventBinder();
@@ -124,6 +113,7 @@ public final class ModerationEvents {
 ```
 
 Handler signature rules:
+
 - Exactly one payload parameter compatible with `payload()`
 - Optional `DiscordClient` parameter for client access
 - Handler methods cannot be private
@@ -166,7 +156,7 @@ DiscordClient client = DiscordClient.create(
 );
 ```
 
-### REST convenience access
+### REST convenience calls
 
 ```java
 JsonNode currentUser = client.api().getCurrentUser();
@@ -184,15 +174,14 @@ client.sendMessageWithAttachments(
 );
 ```
 
----
-
-## Additional docs
+## Additional documentation
 
 - API reference: [`API.md`](API.md)
-- Annotation command framework details: [`docs-command-framework.md`](docs-command-framework.md)
+- Annotation framework guide: [`docs-command-framework.md`](docs-command-framework.md)
+- Migration notes: [`docs-command-interaction-migration.md`](docs-command-interaction-migration.md)
 - Examples: `src/main/java/com/github/cybellereaper/examples/commands`
 
-## Running tests
+## Run tests
 
 ```bash
 ./gradlew test

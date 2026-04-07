@@ -1,21 +1,24 @@
 # Medusae API Reference (Core)
 
-This API surface powers both Medusae command styles: the direct Interaction Router API and the Annotation Command Framework.
+This API surface backs both Medusae command styles:
+
+- Interaction Router API
+- Annotation Command Framework
 
 ## `DiscordClient`
 
-`DiscordClient` is the main entry point for creating a bot client.
+`DiscordClient` is the primary runtime entry point.
 
-### Core lifecycle
+### Lifecycle
 
 - `DiscordClient.create(DiscordClientConfig config)`
 - `login()`
 - `close()`
 
-### Config highlights (`DiscordClientConfig.Builder`)
+### Configuration (`DiscordClientConfig.Builder`)
 
 - `intents(int intents)`
-- `shard(int shardId, int shardCount)` for gateway sharding.
+- `shard(int shardId, int shardCount)`
 
 ### Event handling
 
@@ -30,33 +33,37 @@ This API surface powers both Medusae command styles: the direct Interaction Rout
 - `registerGlobalSlashCommands(List<SlashCommandDefinition>)`
 - `registerGuildSlashCommands(String guildId, List<SlashCommandDefinition>)`
 
-### Interaction responses
+### Interaction handling
 
-- Prefer `on*Context(...)` handlers and respond through `InteractionContext`.
-- `InteractionContext` helpers include:
-  - Response helpers: `respondWithMessage`, `respondWithEmbeds`, `respondEphemeral`, `respondWithModal`, `respondWithAutocompleteChoices`, `deferMessage`, `deferUpdate`
-  - Option helpers: `optionString`, `requiredOptionString`, `optionLong`, `optionInt`, `optionBoolean`, `optionDouble`
-  - Resolved entity helpers: `resolvedAttachment`, `resolvedUser`, `resolvedMember`, `resolvedRole`, `resolvedChannel`
-  - Typed resolved wrappers: `resolvedAttachmentValue`, `resolvedUserValue`, `resolvedMemberValue`, `resolvedRoleValue`, `resolvedChannelValue`
-  - Option-to-resolved helpers: `optionResolvedAttachment`, `optionResolvedUser`, `optionResolvedRole`, `optionResolvedChannel`
-  - Typed option-to-resolved wrappers: `optionResolvedAttachmentValue`, `optionResolvedUserValue`, `optionResolvedRoleValue`, `optionResolvedChannelValue`
-  - Modal helper: `modalValue`
-  - Metadata helpers: `id`, `token`, `interactionType`, `commandType`, `guildId`, `channelId`, `userId`
+Prefer `on*Context(...)` handlers and respond via `InteractionContext`.
 
-- Legacy raw `JsonNode` interaction helpers are still available but deprecated.
+`InteractionContext` includes helpers for:
+
+- **Responses**: `respondWithMessage`, `respondWithEmbeds`, `respondEphemeral`, `respondWithModal`, `respondWithAutocompleteChoices`, `deferMessage`, `deferUpdate`
+- **Options**: `optionString`, `requiredOptionString`, `optionLong`, `optionInt`, `optionBoolean`, `optionDouble`
+- **Resolved entities**: `resolvedAttachment`, `resolvedUser`, `resolvedMember`, `resolvedRole`, `resolvedChannel`
+- **Typed resolved wrappers**: `resolvedAttachmentValue`, `resolvedUserValue`, `resolvedMemberValue`, `resolvedRoleValue`, `resolvedChannelValue`
+- **Option-to-resolved helpers**: `optionResolvedAttachment`, `optionResolvedUser`, `optionResolvedRole`, `optionResolvedChannel`
+- **Typed option-to-resolved wrappers**: `optionResolvedAttachmentValue`, `optionResolvedUserValue`, `optionResolvedRoleValue`, `optionResolvedChannelValue`
+- **Modal fields**: `modalValue`
+- **Interaction metadata**: `id`, `token`, `interactionType`, `commandType`, `guildId`, `channelId`, `userId`
+
+> Legacy raw `JsonNode` interaction helpers remain available but are deprecated.
 
 ### Message sending
 
 - `sendMessage(...)`
 - `sendMessageWithEmbeds(...)`
 
-### REST helper access
+### REST access
 
-- `api()` returns a `DiscordApi` instance for common direct REST operations.
+- `api()` returns `DiscordApi`
 
 ## `DiscordApi`
 
-`DiscordApi` provides convenience methods on top of the underlying REST client.
+`DiscordApi` exposes convenience wrappers over the underlying REST client.
+
+### Common methods
 
 - `getCurrentApplication()`
 - `getCurrentUser()`
@@ -67,12 +74,12 @@ This API surface powers both Medusae command styles: the direct Interaction Rout
 
 ### Validation rules
 
-- IDs and required string arguments must be non-blank.
-- `request(..., path, ...)` requires `path` to start with `/`.
+- IDs and required string values must be non-blank.
+- `request(..., path, ...)` requires `path` to begin with `/`.
 
 ## `DiscordOAuthScopes`
 
-Helpers for OAuth scope composition:
+OAuth scope composition helpers:
 
-- `join(String... scopes)` for normalized, deduplicated scopes.
-- `defaultBotScopes()` for `bot` + `applications.commands`.
+- `join(String... scopes)` for normalized, deduplicated scopes
+- `defaultBotScopes()` for `bot` + `applications.commands`
