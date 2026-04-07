@@ -27,26 +27,24 @@ public final class DiscordResponseApplier implements CommandResponder {
     }
 
     private static List<DiscordActionRow> toRows(List<ActionRowSpec> rows) {
-        return rows.stream().map(row -> DiscordActionRow.of(row.components().stream().map(DiscordResponseApplier::toComponent).toList())).toList();
+        return rows.stream()
+                .map(row -> DiscordActionRow.of(row.components().stream().map(DiscordResponseApplier::toComponent).toList()))
+                .toList();
     }
 
     private static DiscordComponent toComponent(ComponentSpec spec) {
-        if (spec instanceof ButtonSpec button) {
-            return switch (button.style()) {
+        return switch (spec) {
+            case ButtonSpec button -> switch (button.style()) {
                 case PRIMARY -> toButton(DiscordButton.PRIMARY, button);
                 case SECONDARY -> toButton(DiscordButton.SECONDARY, button);
                 case SUCCESS -> toButton(DiscordButton.SUCCESS, button);
                 case DANGER -> toButton(DiscordButton.DANGER, button);
-                case LINK ->
-                        new DiscordButton(DiscordButton.LINK, button.label(), null, button.url(), null, button.disabled());
+                case LINK -> new DiscordButton(DiscordButton.LINK, button.label(), null, button.url(), null, button.disabled());
             };
-        }
-        if (spec instanceof StringSelectSpec select) {
-            return new DiscordStringSelectMenu(select.customId(), select.options().stream()
+            case StringSelectSpec select -> new DiscordStringSelectMenu(select.customId(), select.options().stream()
                     .map(option -> new DiscordSelectOption(option.label(), option.value(), option.description(), option.defaultSelected()))
                     .toList(), select.placeholder(), select.minValues(), select.maxValues(), select.disabled());
-        }
-        throw new IllegalArgumentException("Unsupported component: " + spec.getClass().getSimpleName());
+        };
     }
 
     private static DiscordButton toButton(int style, ButtonSpec button) {
@@ -69,43 +67,29 @@ public final class DiscordResponseApplier implements CommandResponder {
 
     @Override
     public void accept(CommandResponse response) {
-        if (response instanceof ImmediateResponse immediateResponse) {
-            DiscordMessage message = DiscordMessage.ofContent(immediateResponse.content());
-            context.respondWithMessage(immediateResponse.ephemeral() ? message.asEphemeral() : message);
-            return;
-        }
-        if (response instanceof DeferredResponse deferredResponse) {
-            context.deferMessage();
-            return;
-        }
-        if (response instanceof FollowupResponse) {
-            throw new UnsupportedOperationException("Follow-up responses require webhook helpers not yet exposed by DiscordClient");
-        }
-        if (response instanceof ModalReply modalReply) {
-            context.respondWithModal(toModal(modalReply));
-            return;
-        }
-        if (response instanceof InteractionReply interactionReply) {
-            applyInteractionReply(interactionReply);
+        switch (response) {
+            case ImmediateResponse immediateResponse -> {
+                DiscordMessage message = DiscordMessage.ofContent(immediateResponse.content());
+                context.respondWithMessage(immediateResponse.ephemeral() ? message.asEphemeral() : message);
+            }
+            case DeferredResponse ignored -> context.deferMessage();
+            case FollowupResponse ignored -> throw new UnsupportedOperationException(
+                    "Follow-up responses require webhook helpers not yet exposed by DiscordClient");
+            case ModalReply modalReply -> context.respondWithModal(toModal(modalReply));
+            case InteractionReply interactionReply -> applyInteractionReply(interactionReply);
         }
     }
 
     private void applyInteractionReply(InteractionReply reply) {
-        if (reply.mode() == ResponseMode.DEFER_REPLY) {
-            context.deferMessage();
-            return;
+        switch (reply.mode()) {
+            case DEFER_REPLY -> context.deferMessage();
+            case DEFER_UPDATE -> context.deferUpdate();
+            default -> context.respondWithMessage(new DiscordMessage(
+                    reply.content(),
+                    toEmbeds(reply.embeds()),
+                    toRows(reply.components()),
+                    reply.isEphemeral()
+            ));
         }
-        if (reply.mode() == ResponseMode.DEFER_UPDATE) {
-            context.deferUpdate();
-            return;
-        }
-
-        DiscordMessage message = new DiscordMessage(reply.content(), toEmbeds(reply.embeds()), toRows(reply.components()), reply.isEphemeral());
-        if (reply.mode() == ResponseMode.UPDATE_MESSAGE || reply.mode() == ResponseMode.EDIT_ORIGINAL || reply.mode() == ResponseMode.FOLLOWUP) {
-            // Client currently exposes only callback responses. Use regular message callback until webhook/edit APIs are exposed.
-            context.respondWithMessage(message);
-            return;
-        }
-        context.respondWithMessage(message);
     }
 }
