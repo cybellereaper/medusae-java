@@ -1,5 +1,12 @@
 package com.github.cybellereaper.commands.core.model;
 
+import com.github.cybellereaper.client.ResolvedAttachment;
+import com.github.cybellereaper.client.ResolvedChannel;
+import com.github.cybellereaper.client.ResolvedMember;
+import com.github.cybellereaper.client.ResolvedMessage;
+import com.github.cybellereaper.client.ResolvedRole;
+import com.github.cybellereaper.client.ResolvedUser;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -17,17 +24,18 @@ public record CommandInteraction(
         String userId,
         Set<String> userPermissions,
         Set<String> botPermissions,
-        Object targetUser,
-        Object targetMember,
-        Object targetChannel,
-        Object targetRole,
-        Object targetAttachment,
-        Object targetMessage,
-        Map<String, Object> optionUsers,
-        Map<String, Object> optionMembers,
-        Map<String, Object> optionChannels,
-        Map<String, Object> optionRoles,
-        Map<String, Object> optionAttachments
+        ResolvedUser targetUser,
+        ResolvedMember targetMember,
+        ResolvedChannel targetChannel,
+        ResolvedRole targetRole,
+        ResolvedAttachment targetAttachment,
+        ResolvedMessage targetMessage,
+        ResolvedEntities resolved,
+        Map<String, ResolvedUser> optionUsers,
+        Map<String, ResolvedMember> optionMembers,
+        Map<String, ResolvedChannel> optionChannels,
+        Map<String, ResolvedRole> optionRoles,
+        Map<String, ResolvedAttachment> optionAttachments
 ) {
     public CommandInteraction {
         options = immutableWithoutNulls(options);
@@ -38,6 +46,7 @@ public record CommandInteraction(
         optionChannels = immutableWithoutNulls(optionChannels);
         optionRoles = immutableWithoutNulls(optionRoles);
         optionAttachments = immutableWithoutNulls(optionAttachments);
+        resolved = resolved == null ? ResolvedEntities.empty() : resolved;
     }
 
     public CommandInteraction(
@@ -53,16 +62,16 @@ public record CommandInteraction(
             String userId,
             Set<String> userPermissions,
             Set<String> botPermissions,
-            Object targetUser,
-            Object targetMember,
-            Object targetChannel,
-            Object targetRole,
-            Object targetAttachment,
-            Object targetMessage
+            ResolvedUser targetUser,
+            ResolvedMember targetMember,
+            ResolvedChannel targetChannel,
+            ResolvedRole targetRole,
+            ResolvedAttachment targetAttachment,
+            ResolvedMessage targetMessage
     ) {
         this(commandName, commandType, subcommandGroup, subcommand, options, focusedOption, rawInteraction, dm, guildId, userId,
                 userPermissions, botPermissions, targetUser, targetMember, targetChannel, targetRole, targetAttachment,
-                targetMessage, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+                targetMessage, ResolvedEntities.empty(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
     public String routeKey() {
