@@ -144,6 +144,24 @@ module Medusae
         respond(interaction, ResponseType::DeferredChannelMessage, nil)
       end
 
+
+      def respond_with_embeds(interaction : JSON::Any, content : String?, embeds : Enumerable(DiscordEmbed?)?) : Nil
+        message = DiscordMessage.of_embeds(content, embeds)
+        respond(interaction, ResponseType::ChannelMessage, message.to_payload)
+      end
+
+      def respond_ephemeral(interaction : JSON::Any, content : String?) : Nil
+        message = DiscordMessage.of_content(content).as_ephemeral
+        respond(interaction, ResponseType::ChannelMessage, message.to_payload)
+      end
+
+      def respond_with_autocomplete_choices(interaction : JSON::Any, choices : Enumerable(AutocompleteChoice)) : Nil
+        payload = {
+          "choices" => Medusae::Support::JsonPayload.any(choices.to_a.map(&.to_payload)),
+        }
+        respond(interaction, ResponseType::Autocomplete, payload)
+      end
+
       private def register_unique_handler(handlers : Hash(String, ContextHandler), key : String, handler_type : String, handler : ContextHandler) : Nil
         normalized_key = validate_key(key, handler_type)
         if handlers.has_key?(normalized_key)

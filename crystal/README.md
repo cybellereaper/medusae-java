@@ -1,12 +1,22 @@
-# Medusae Crystal Port (Phase 1)
+# Medusae Crystal Port
 
-This directory contains a Crystal rewrite foundation for Medusae.
+This directory contains the Crystal rewrite of Medusae.
 
-## Implemented modules
+## Migration phases completed
 
+### Phase 1: Core runtime primitives
 - `Medusae::Gateway::GatewayIntent`
 - `Medusae::Client::DiscordClientConfig`
 - `Medusae::Client::SlashCommandRouter`
+
+### Phase 2: Payload and command model
+- `Medusae::Client::AutocompleteChoice`
+- `Medusae::Client::DiscordOAuthScopes`
+- `Medusae::Client::DiscordPermissions`
+- `Medusae::Client::DiscordEmbed`
+- `Medusae::Client::DiscordMessage`
+- `Medusae::Client::SlashCommandOptionDefinition`
+- `Medusae::Client::SlashCommandDefinition`
 
 ## Run tests
 
